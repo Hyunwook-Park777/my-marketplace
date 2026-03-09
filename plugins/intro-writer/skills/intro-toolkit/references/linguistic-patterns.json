@@ -1,0 +1,147 @@
+{
+  "introduction_patterns": {
+    "opening_phrases": {
+      "problem_context": [
+        "The increasing demand for...",
+        "In recent years, ... has attracted significant attention",
+        "... is a critical challenge in ...",
+        "The development of ... has been driven by ...",
+        "With the growing concern over ...",
+        "... plays a crucial role in ...",
+        "The need for ... has become increasingly apparent",
+        "Recent advances in ... have enabled ...",
+        "... remains a significant obstacle to ..."
+      ],
+      "statistical_opening": [
+        "According to ..., approximately X% of ...",
+        "It is estimated that ... accounts for ...",
+        "Over the past decade, ... has increased by X%",
+        "The global ... market is projected to reach ..."
+      ],
+      "importance_statement": [
+        "... is of paramount importance for ...",
+        "Understanding ... is essential for ...",
+        "... has emerged as a key factor in ...",
+        "The significance of ... cannot be overstated"
+      ]
+    },
+    "gap_identification": {
+      "limitation_phrases": [
+        "However, ... remains challenging due to ...",
+        "Despite significant progress, ... still suffers from ...",
+        "Conventional approaches are limited by ...",
+        "A major drawback of existing methods is ...",
+        "To date, ... has not been adequately addressed",
+        "Current methods fail to account for ...",
+        "The lack of ... hinders the development of ...",
+        "While ... has shown promise, ... is still lacking"
+      ],
+      "transition_to_gap": [
+        "Nevertheless, ...",
+        "Despite these advances, ...",
+        "However, several challenges remain:",
+        "Addressing these limitations requires ...",
+        "To overcome these challenges, ..."
+      ]
+    },
+    "objective_statement": {
+      "purpose_phrases": [
+        "In this study, we ...",
+        "The present work aims to ...",
+        "Here, we present ...",
+        "This paper proposes ...",
+        "The objective of this study is to ...",
+        "We report a novel approach to ...",
+        "This work introduces ...",
+        "The purpose of this investigation is to ..."
+      ],
+      "contribution_preview": [
+        "The main contributions of this work are:",
+        "Specifically, this study contributes to ...",
+        "Our approach differs from previous work in that ...",
+        "The novelty of this work lies in ..."
+      ]
+    },
+    "closing_patterns": [
+      "Here, we present [System] for [Application].",
+      "In this work, we develop [Method] to address [Problem].",
+      "We demonstrate that [Approach] achieves [Result].",
+      "This paper is organized as follows: ..."
+    ]
+  },
+  "narrative_flow": {
+    "stages": [
+      {
+        "name": "problem_context",
+        "purpose": "Establish the broader research context and importance",
+        "typical_paragraphs": 1,
+        "key_elements": ["field importance", "recent trends", "statistics"]
+      },
+      {
+        "name": "literature_review",
+        "purpose": "Survey existing approaches and their achievements",
+        "typical_paragraphs": 2,
+        "key_elements": ["prior work", "existing methods", "achievements"]
+      },
+      {
+        "name": "gap_identification",
+        "purpose": "Identify limitations and unresolved challenges",
+        "typical_paragraphs": 1,
+        "key_elements": ["limitations", "challenges", "unmet needs"]
+      },
+      {
+        "name": "solution_introduction",
+        "purpose": "Present the proposed approach and its advantages",
+        "typical_paragraphs": 1,
+        "key_elements": ["proposed method", "key innovation", "advantages"]
+      },
+      {
+        "name": "paper_overview",
+        "purpose": "Preview the paper structure and key results",
+        "typical_paragraphs": 1,
+        "key_elements": ["paper organization", "key findings preview"]
+      }
+    ]
+  },
+  "voice_tense_patterns": {
+    "introduction": {
+      "voice": {"active": 0.60, "passive": 0.40},
+      "tense": {"present": 0.85, "past": 0.15},
+      "notes": "Present tense dominant for established facts, past tense for literature review"
+    }
+  },
+  "transition_phrases": {
+    "addition": ["Furthermore", "Moreover", "In addition", "Additionally"],
+    "contrast": ["However", "Nevertheless", "In contrast", "On the other hand", "Despite"],
+    "cause_effect": ["Therefore", "Consequently", "As a result", "Thus", "Hence"],
+    "example": ["For instance", "For example", "Specifically", "In particular"],
+    "sequence": ["First", "Second", "Finally", "Subsequently", "Meanwhile"],
+    "emphasis": ["Notably", "Importantly", "Significantly", "In particular", "It is worth noting that"]
+  },
+  "hedging_expressions": {
+    "verbs": ["may", "could", "might", "suggest", "indicate", "appear"],
+    "adverbs": ["potentially", "possibly", "likely", "presumably", "approximately"],
+    "phrases": ["it is possible that", "this suggests that", "it appears that", "to some extent"],
+    "introduction_frequency": 0.05
+  },
+  "high_frequency_verbs": {
+    "introduction": {
+      "top_10": [
+        "present", "demonstrate", "develop", "propose", "investigate",
+        "achieve", "address", "enable", "require", "report"
+      ]
+    }
+  },
+  "citation_patterns": {
+    "numbered": {
+      "pattern": "[N]",
+      "examples": ["[1]", "[2,3]", "[4-7]"],
+      "position": "end_of_sentence"
+    },
+    "author_year": {
+      "pattern": "(Author, Year)",
+      "examples": ["(Smith et al., 2023)", "(Lee and Park, 2024)"],
+      "position": "inline"
+    }
+  }
+}

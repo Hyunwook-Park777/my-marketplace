@@ -1,0 +1,10 @@
+{
+  "name": "intro-writer",
+  "version": "1.0.0",
+  "description": "사용자의 논문 작성 스타일이 반영된 Introduction을 자동 작성하는 플러그인. 참고 PDF 변환, 스타일 분석, Introduction 작성, SCIE 요약 생성을 수행합니다.",
+  "author": {
+    "name": "Baekdong Cha",
+    "email": "orientpine@gmail.com"
+  },
+  "license": "MIT"
+}
