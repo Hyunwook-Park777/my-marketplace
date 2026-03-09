@@ -1,42 +1,46 @@
 {
   "name": "my-marketplace",
-  "version": "1.0.0",
-  "description": "Custom plugin marketplace for Claude Code",
+  "owner": {
+    "name": "Baekdong Cha",
+    "url": "https://github.com/Hyunwook-Park777"
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "description": "Custom plugin marketplace for Claude Code"
+  },
   "plugins": [
     {
       "name": "nature-methods-paper-skills",
-      "version": "1.0.0",
+      "source": "./plugins/nature-methods-paper-skills",
       "description": "Paper writing skill set based on Hydrogen ICE / Dual-Fuel Engine research papers style analysis (14 papers, Hyunwook Park et al.)",
-      "path": "plugins/nature-methods-paper-skills",
+      "version": "1.0.0",
+      "strict": true,
       "agents": [
-        "nature-methods-paper-orchestrator",
-        "nature-methods-title-writer",
-        "nature-methods-abstract-writer",
-        "nature-methods-introduction-writer",
-        "nature-methods-methodology-writer",
-        "nature-methods-results-writer",
-        "nature-methods-discussion-writer",
-        "nature-methods-caption-writer",
-        "nature-methods-verify"
+        "./agents/nature-methods-paper-orchestrator.md",
+        "./agents/nature-methods-title-writer.md",
+        "./agents/nature-methods-abstract-writer.md",
+        "./agents/nature-methods-introduction-writer.md",
+        "./agents/nature-methods-methodology-writer.md",
+        "./agents/nature-methods-results-writer.md",
+        "./agents/nature-methods-discussion-writer.md",
+        "./agents/nature-methods-caption-writer.md",
+        "./agents/nature-methods-verify.md"
       ],
-      "skills": [
-        "nature-methods-style-guide"
-      ]
+      "skills": ["./skills"]
     },
     {
       "name": "intro-writer",
-      "version": "1.0.0",
+      "source": "./plugins/intro-writer",
       "description": "사용자의 논문 작성 스타일이 반영된 Introduction을 자동 작성하는 플러그인. 참고 PDF 변환, 스타일 분석, Introduction 작성, SCIE 요약 생성을 수행합니다.",
-      "path": "plugins/intro-writer",
+      "version": "1.0.0",
+      "strict": true,
       "agents": [
-        "pdf-converter",
-        "style-analyzer",
-        "intro-writer",
-        "paper-summarizer"
+        "./agents/pdf-converter.md",
+        "./agents/style-analyzer.md",
+        "./agents/intro-writer.md",
+        "./agents/paper-summarizer.md"
       ],
-      "skills": [
-        "intro-toolkit"
-      ]
+      "skills": ["./skills"]
     }
   ]
 }

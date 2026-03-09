@@ -1,0 +1,10 @@
+{
+  "name": "nature-methods-paper-skills",
+  "version": "1.0.0",
+  "description": "Paper writing skill set based on Hydrogen ICE / Dual-Fuel Engine research papers style analysis (14 papers, Hyunwook Park et al.)",
+  "author": {
+    "name": "Baekdong Cha",
+    "email": "orientpine@gmail.com"
+  },
+  "license": "MIT"
+}
