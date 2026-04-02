@@ -1,0 +1,117 @@
+{
+  "description": "ISO 표준 문서의 조항 패턴, 구조, 자동차 표준 키워드",
+
+  "standard_section_structure": {
+    "description": "ISO 관리시스템 표준(MSS)의 표준 조항 구조 (High Level Structure)",
+    "clauses": {
+      "1": "Scope (적용 범위)",
+      "2": "Normative references (인용 표준)",
+      "3": "Terms and definitions (용어와 정의)",
+      "4": "Context of the organization (조직의 맥락)",
+      "5": "Leadership (리더십)",
+      "6": "Planning (기획)",
+      "7": "Support (지원)",
+      "8": "Operation (운용)",
+      "9": "Performance evaluation (성과 평가)",
+      "10": "Improvement (개선)"
+    },
+    "annex_types": {
+      "normative": "규범적 부속서 - 본문과 동등한 구속력",
+      "informative": "참고적 부속서 - 가이드/예시 목적"
+    }
+  },
+
+  "automotive_standards": {
+    "IATF_16949": {
+      "description": "자동차 품질경영시스템 (ISO 9001 기반 + 자동차 산업 추가 요구사항)",
+      "key_additions": [
+        "제품 안전 (Product Safety)",
+        "APQP/PPAP 프로세스",
+        "MSA (측정시스템분석)",
+        "SPC (통계적 공정관리)",
+        "고객 특정 요구사항 (CSR)",
+        "보증 관리"
+      ]
+    },
+    "ISO_26262": {
+      "description": "도로 차량 기능 안전 (Functional Safety)",
+      "key_concepts": ["ASIL", "Safety Goal", "HARA", "Safety Case"]
+    },
+    "ISO_21448": {
+      "description": "의도된 기능의 안전 (SOTIF)",
+      "key_concepts": ["알려진 위험", "미지 위험", "시나리오 기반 검증"]
+    },
+    "ISO_19880": {
+      "description": "수소 연료충전소 관련 표준",
+      "parts": {
+        "1": "일반 요구사항",
+        "3": "밸브",
+        "5": "호스 및 호스 어셈블리",
+        "8": "연료 품질 관리"
+      }
+    }
+  },
+
+  "clause_number_patterns": {
+    "top_level": "^\\d+$",
+    "sub_level": "^\\d+\\.\\d+$",
+    "sub_sub_level": "^\\d+\\.\\d+\\.\\d+$",
+    "deep_level": "^\\d+(\\.\\d+){3,}$",
+    "annex_clause": "^[A-Z](\\.\\d+)*$",
+    "description": "ISO 문서의 조항 번호는 계층적 숫자 체계를 사용. 부속서는 대문자 알파벳으로 시작."
+  },
+
+  "change_significance": {
+    "description": "DIS 변경사항의 중요도 분류 기준",
+    "levels": {
+      "critical": {
+        "description": "필수 적합성 요구사항의 변경 (shall 문장)",
+        "keywords": ["shall", "shall not", "requirement", "mandatory"],
+        "impact": "인증 심사 직접 영향, 프로세스 변경 필요"
+      },
+      "major": {
+        "description": "권장사항 또는 구조적 변경",
+        "keywords": ["should", "recommended", "may"],
+        "impact": "프로세스 검토 필요, 문서 업데이트 권장"
+      },
+      "minor": {
+        "description": "용어 변경, 명확화, 예시 추가",
+        "keywords": ["note", "example", "clarification"],
+        "impact": "인식 필요, 즉각적 조치 불필요"
+      },
+      "editorial": {
+        "description": "오타 수정, 참조 번호 변경, 형식 변경",
+        "impact": "실질적 영향 없음"
+      }
+    }
+  },
+
+  "dis_process_context": {
+    "description": "DIS (Draft International Standard) 단계 설명",
+    "stages": {
+      "NP": "New work item Proposal (신규 작업 제안)",
+      "WD": "Working Draft (작업 초안)",
+      "CD": "Committee Draft (위원회 초안)",
+      "DIS": "Draft International Standard (국제표준안)",
+      "FDIS": "Final Draft International Standard (최종 국제표준안)",
+      "IS": "International Standard (국제표준)"
+    },
+    "dis_voting": "DIS 단계에서는 ISO 회원국이 5개월간 투표. 찬성/반대/기권 + 기술적 의견(comment) 제출",
+    "comment_types": {
+      "general": "일반적 의견",
+      "technical": "기술적 의견 (구체적 변경 제안 포함)",
+      "editorial": "편집상 의견"
+    }
+  },
+
+  "modal_verbs_iso": {
+    "description": "ISO 표준에서 사용하는 조동사의 의미 (ISO/IEC Directives Part 2 기반)",
+    "shall": "요구사항 (requirement) - 반드시 준수해야 함",
+    "shall_not": "금지 (prohibition) - 절대 해서는 안 됨",
+    "should": "권장사항 (recommendation) - 준수를 권장하나 예외 허용",
+    "should_not": "비권장 (deprecated) - 지양하나 예외 허용",
+    "may": "허용 (permission) - 선택적으로 허용",
+    "can": "가능성/능력 (possibility/capability)",
+    "must": "ISO 표준에서는 사용하지 않음 (shall로 대체)"
+  }
+}

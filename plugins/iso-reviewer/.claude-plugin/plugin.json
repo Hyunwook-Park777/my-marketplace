@@ -1,0 +1,10 @@
+{
+  "name": "iso-reviewer",
+  "version": "2.0.0",
+  "description": "ISO 표준 문서의 IS/DIS 버전 비교 분석, 전문가 Excel 교차 검증, 도메인 멘탈모델 기반 심층 분석, DIS 투표양식 자동 생성을 수행하는 플러그인. 6-Phase 파이프라인으로 PDF 변환부터 Ballot 생성까지 지원합니다.",
+  "author": {
+    "name": "Baekdong Cha",
+    "email": "orientpine@gmail.com"
+  },
+  "license": "MIT"
+}

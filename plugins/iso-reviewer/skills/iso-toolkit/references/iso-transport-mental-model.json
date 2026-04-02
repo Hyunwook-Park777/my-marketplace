@@ -1,0 +1,201 @@
+{
+  "description": "ISO 운송/자동차 분야 멘탈모델. AI 분석 시 도메인 전문 지식을 제공하여 변경사항의 배경과 의미를 설명하도록 유도합니다.",
+  "version": "1.0.0",
+
+  "iso_8178_series": {
+    "description": "ISO 8178 시리즈는 왕복 내연기관(RICE)의 배출가스 측정 및 평가 체계를 규정하는 국제 표준입니다.",
+    "parts": {
+      "part_1": {
+        "number": "ISO 8178-1",
+        "title": "Test-bed measurement of gaseous and particulate exhaust emissions",
+        "scope": "시험대(test-bed)에서의 가스 및 입자 배출물 측정 방법",
+        "key_clauses": {
+          "clause_5": "측정 원리 (Principle of emission measurement)",
+          "clause_6": "측정 장비 및 데이터 (Measurement equipment and data)",
+          "clause_7": "배출물 측정 절차 (Exhaust emission measurement procedures)",
+          "clause_8": "시험 조건 (Test conditions)",
+          "clause_9": "교정 및 검증 (Calibration and verification)"
+        },
+        "analysis_guidance": "Part 1의 변경은 측정 정확성, 재현성, 국제 조화에 직접 영향. 특히 Clause 6(장비), Clause 7(절차), Clause 9(교정)의 변경은 시험소 운영 비용과 인프라 투자에 영향."
+      },
+      "part_4": {
+        "number": "ISO 8178-4",
+        "title": "Steady-state and transient test cycles for different engine applications",
+        "scope": "엔진 용도별 정상상태 및 과도상태 시험 사이클",
+        "key_clauses": {
+          "clause_4": "시험 사이클 분류 (Classification of test cycles)",
+          "clause_5": "정상상태 시험 사이클 (Steady-state test cycles)",
+          "clause_6": "과도상태 시험 사이클 (Transient test cycles)"
+        },
+        "analysis_guidance": "Part 4의 변경은 엔진 인증 시험 비용과 일정에 직접 영향. 시험 사이클 변경 시 기존 인증 데이터의 유효성 검토 필요."
+      },
+      "part_5": {
+        "number": "ISO 8178-5",
+        "title": "Test fuels",
+        "scope": "시험용 연료의 사양",
+        "key_clauses": {
+          "clause_4": "시험 연료 사양 (Test fuel specifications)",
+          "clause_5": "연료 품질 관리 (Fuel quality management)"
+        },
+        "analysis_guidance": "Part 5의 변경은 시험용 연료 조달과 품질 관리에 영향. 특히 수소/대체연료 추가 시 기존 디젤/가스 연료와의 호환성 검토 필요."
+      }
+    },
+    "interdependencies": {
+      "part1_part4": "Part 4의 시험 사이클은 Part 1의 측정 절차에 따라 수행됨. Part 1의 장비 요구사항 변경 시 Part 4 적용에도 영향.",
+      "part1_part5": "Part 1의 시험 절차는 Part 5에서 규정하는 연료를 사용. 연료 사양 변경 시 측정 보정 인자 재검토 필요.",
+      "part4_part5": "Part 4 시험 사이클 수행 시 Part 5 연료 사용이 전제. 새 연료 유형 추가 시 시험 사이클 적용성 검토 필요."
+    },
+    "analysis_guidance": "ISO 8178 개정 분석 시 Part 간 상호 영향을 반드시 고려. 한 Part의 변경이 다른 Part의 요구사항과 충돌하지 않는지 교차 검증 필요."
+  },
+
+  "emission_regulations": {
+    "description": "전 세계 주요 배출 규제와 ISO 8178의 관계",
+    "regulations": {
+      "eu_stage_v": {
+        "name": "EU Stage V (Regulation (EU) 2016/1628)",
+        "scope": "비도로 이동기계 (NRMM) 배출 규제",
+        "relevance": "ISO 8178 시험 사이클을 EU 인증 시험의 기반으로 참조",
+        "key_requirements": ["PN 측정 추가", "19-560 kW 엔진 과도상태 시험 의무화"],
+        "analysis_guidance": "Stage V의 PN 측정 요구사항이 ISO 8178-1 DIS의 PN 관련 조항 신설과 연관되는지 확인."
+      },
+      "us_epa_tier_4": {
+        "name": "US EPA Tier 4 Final (40 CFR Part 1039)",
+        "scope": "비도로 디젤 엔진 배출 규제",
+        "relevance": "ISO 8178 D2/C1 시험 사이클을 EPA 인증에 활용",
+        "analysis_guidance": "EPA와 ISO 간 시험 절차 조화(harmonization) 노력이 DIS에 반영되었는지 확인."
+      },
+      "china_stage_iv": {
+        "name": "중국 Stage IV (GB 20891-2014)",
+        "scope": "비도로 이동기계 배출 규제",
+        "relevance": "ISO 8178 시험 사이클을 중국 인증 시험에 채택",
+        "analysis_guidance": "중국 시장 확대에 따라 ISO 8178이 중국 규제와의 호환성을 강화하는 변경이 있는지 확인."
+      },
+      "imo_tier_iii": {
+        "name": "IMO MARPOL Annex VI / Tier III (NOx Technical Code)",
+        "scope": "선박용 엔진 배출 규제",
+        "relevance": "ISO 8178-4 E3/E5 시험 사이클을 선박 엔진 인증에 사용",
+        "analysis_guidance": "해양 분야의 탈탄소화(LNG, 메탄올, 암모니아 연료) 추세가 Part 5 연료 사양에 반영되는지 확인."
+      }
+    },
+    "analysis_guidance": "배출 규제 변경의 방향성(강화/확장)이 ISO 8178 DIS 개정 내용과 일치하는지 분석. 규제-표준 간 gap이 있다면 DIS 의견으로 제시."
+  },
+
+  "measurement_technology_evolution": {
+    "description": "배출가스 측정 기술의 진화와 ISO 8178 영향",
+    "transitions": {
+      "ndir_to_ftir": {
+        "from": "NDIR (Non-Dispersive Infrared)",
+        "to": "FTIR (Fourier Transform Infrared Spectroscopy)",
+        "reason": "다성분 동시 측정 능력, NH3/N2O/CH4 등 신규 규제 물질 측정 가능",
+        "impact_on_iso": "Clause 6(측정 장비)에 FTIR 허용/권장 여부, 교정 절차 변경",
+        "analysis_guidance": "DIS에서 FTIR을 기존 NDIR과 동등하게 인정하는지, 아니면 대체로 권장하는지 확인."
+      },
+      "cld_to_lia": {
+        "from": "CLD (Chemiluminescence Detector) for NOx",
+        "to": "LIA (Laser-based Infrared Analyzer)",
+        "reason": "CLD의 NH3 간섭 문제 해결, 반응 시간 개선",
+        "impact_on_iso": "NOx 측정 방법 대안 추가, 과도상태 시험 반응 시간 요구사항",
+        "analysis_guidance": "LIA가 CLD 대비 과도상태 측정에서 유리한 점이 DIS에 반영되었는지 확인."
+      },
+      "pm_to_pn": {
+        "from": "PM (Particulate Matter, 질량 기반)",
+        "to": "PN (Particle Number, 입자 수 기반)",
+        "reason": "EU Stage V에서 PN 규제 도입, 질량 기반 측정의 재현성 한계",
+        "impact_on_iso": "PN 측정 장비(CPC), 시료 전처리(VPR), 시험 절차 신설",
+        "analysis_guidance": "PN 관련 조항이 신설/확장되었다면, EU Stage V와의 정합성 및 장비 요구사항 적정성 검토."
+      }
+    },
+    "emerging_technologies": {
+      "hydrogen_measurement": {
+        "challenge": "H2-ICE 배출물(NOx, H2O, 미량 오일 연소 PM)은 기존 디젤 측정 체계와 상이",
+        "needed_analyzers": ["MS (Mass Spectrometer)", "Raman Analyzer", "FTIR with H2O compensation"],
+        "analysis_guidance": "DIS에서 수소 엔진 측정에 대한 별도 조항이나 가이던스가 추가되었는지 확인. 수소 엔진의 높은 H2O 배출이 기존 시료 전처리 시스템에 미치는 영향 검토."
+      },
+      "real_driving_emissions": {
+        "challenge": "PEMS (Portable Emission Measurement System)와 시험대 측정의 상관성",
+        "analysis_guidance": "DIS에서 PEMS 관련 참조나 시험대-실주행 상관성 언급이 있는지 확인."
+      }
+    },
+    "analysis_guidance": "측정 기술 진화가 ISO 8178 개정에 적절히 반영되었는지 분석. 새 기술 도입 시 기존 시험소의 전환 비용과 전환 기간 고려."
+  },
+
+  "calibration_hierarchy": {
+    "description": "배출가스 측정 장비의 교정 체계",
+    "levels": {
+      "reference_standard": "국가 표준기관(NMI)의 기준가스/기준기",
+      "working_standard": "시험소 표준가스 (NMI 소급 교정)",
+      "span_gas": "스팬가스 (시험 전후 교정용)",
+      "zero_gas": "제로가스 (기준선 설정용)"
+    },
+    "iso_8178_clause_9": {
+      "role": "Clause 9는 교정 절차, 교정 주기, 허용 오차를 규정",
+      "significance": "교정 체계의 변경은 모든 시험 결과의 소급성(traceability)에 영향",
+      "analysis_guidance": "Clause 9 재구성(restructuring)이 있다면 교정 절차의 실질적 변경인지 단순 재배치인지 구분. 허용 오차 변경은 시험 결과 판정에 직접 영향."
+    },
+    "analysis_guidance": "교정 관련 변경은 시험소 인정(ISO/IEC 17025)과 직접 연결. KOLAS 등 인정기관의 요구사항 충족 여부 확인."
+  },
+
+  "hydrogen_engine_challenges": {
+    "description": "수소 내연기관(H2-ICE) 관련 ISO 8178 측정 과제",
+    "emission_characteristics": {
+      "nox": "H2-ICE는 높은 연소 온도로 인해 상당량의 열적 NOx 생성. 람다(Lambda) 제어가 핵심.",
+      "h2o": "수소 연소 시 다량의 H2O 생성 → 습식 측정에서 간섭, 건식 측정 시 제거 필요",
+      "pm_pn": "무탄소 연료이나 윤활유 연소에 의한 미량 PM/PN 발생 가능",
+      "unburned_h2": "불완전 연소 시 미연 H2 배출 → 기존 FID(HC 분석기)로 측정 불가"
+    },
+    "measurement_challenges": {
+      "h2o_interference": "높은 수증기 농도가 NDIR, CLD 등 기존 분석기의 교차 간섭 유발",
+      "lambda_sensor": "광대역 람다 센서의 H2 연료 환경 교정이 필요",
+      "sampling_system": "시료 채취 라인의 수분 응축 방지 가열 온도 재검토 필요"
+    },
+    "analysis_guidance": "DIS에서 수소 엔진 관련 조항(Lambda 센서, H2O 보상, 연료 사양)이 신설/변경되었다면, 현재 H2-ICE 연구 수준과의 정합성 검토. 한국의 수소 정책(수소경제 활성화 로드맵)과의 연관성 언급."
+  },
+
+  "iso_iec_directives": {
+    "description": "ISO/IEC Directives에 따른 DIS 투표 절차 및 의견 작성 가이드",
+    "dis_ballot": {
+      "voting_period": "5개월 (회원국 검토 및 투표)",
+      "eligible_voters": "P-member (적극 참여 회원국)만 투표권 보유",
+      "voting_options": {
+        "approval": "승인 (찬성)",
+        "approval_with_comments": "조건부 승인 (찬성 + 기술 의견)",
+        "disapproval": "반대 (기술적 근거 필수)",
+        "abstention": "기권"
+      },
+      "approval_criteria": "P-member 투표의 2/3 이상 찬성 + 반대표가 전체 투표의 1/4 이하",
+      "analysis_guidance": "대부분의 국가는 approval_with_comments로 투표. 반대(disapproval)는 심각한 기술적 문제가 있을 때만 사용."
+    },
+    "comment_types": {
+      "general": {
+        "description": "문서 전체에 대한 일반적 의견",
+        "example": "전반적으로 수소 엔진 측정에 대한 가이던스가 부족합니다."
+      },
+      "technical": {
+        "description": "구체적 조항에 대한 기술적 의견 (변경 제안 포함)",
+        "format": "조항 번호 + 현재 문구 + 제안 변경 + 근거",
+        "example": "Clause 6.4.2: 'NDIR shall be used' → 'NDIR or FTIR shall be used' (FTIR의 다성분 측정 이점)"
+      },
+      "editorial": {
+        "description": "편집상 오류 수정 (오타, 참조 번호 등)",
+        "example": "Table 3, row 5: '±2 %' should be '±2,0 %' per ISO 80000-1"
+      }
+    },
+    "analysis_guidance": "투표 의견 작성 시 기술적 의견은 반드시 구체적 조항 번호, 현재 문구, 제안 변경, 기술적 근거를 포함해야 함."
+  },
+
+  "korean_context": {
+    "description": "한국의 ISO 8178 관련 맥락",
+    "organizations": {
+      "kats": "국가기술표준원 (KATS) - ISO 회원기관, DIS 투표 주관",
+      "keiti": "한국환경산업기술원 - 배출 규제 시행",
+      "katri": "한국자동차연구원 (KATRI) - 비도로 엔진 인증 시험",
+      "kitech": "한국생산기술연구원 - 배출가스 측정 기술 연구"
+    },
+    "policy_relevance": {
+      "hydrogen_economy": "수소경제 활성화 로드맵 (2019) → H2-ICE 상용화 지원",
+      "carbon_neutrality": "2050 탄소중립 → 대체연료 엔진 측정 표준 수요 증가",
+      "nrmm_regulations": "건설기계/농업기계 배출 규제 강화 추세"
+    },
+    "analysis_guidance": "한국은 ISO/TC 70(왕복 내연기관) P-member. DIS 투표 시 국내 산업계/연구계의 의견을 종합하여 제출. 특히 수소 엔진 관련 조항은 한국의 수소 정책과 연계하여 적극적 의견 제시 권장."
+  }
+}
