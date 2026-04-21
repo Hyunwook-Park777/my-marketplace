@@ -1,0 +1,22 @@
+{
+  "name": "oh-my-claudecode-async",
+  "version": "4.13.1-async.1",
+  "description": "Fork of oh-my-claudecode with async:true applied to UI-blocking hooks (UserPromptSubmit, SessionStart, PreToolUse, PostToolUse, Stop, SessionEnd) to fix terminal keyboard timing freeze. Based on oh-my-claudecode@4.13.1 by Yeachan Heo (MIT).",
+  "author": {
+    "name": "Baekdong Cha (fork maintainer)",
+    "email": "orientpine@gmail.com"
+  },
+  "repository": "https://github.com/Hyunwook-Park777/my-marketplace",
+  "license": "MIT",
+  "keywords": [
+    "claude-code",
+    "plugin",
+    "multi-agent",
+    "orchestration",
+    "automation",
+    "async-hooks",
+    "fork"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json"
+}
