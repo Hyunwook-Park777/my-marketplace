@@ -1,5 +1,5 @@
 {
-  "description": "OMC orchestration hooks with async capabilities (patched: async:true added to UI-blocking hooks to fix keyboard timing)",
+  "description": "OMC orchestration hooks (fork: async:true applied ONLY to SessionStart * matcher per https://for-habit.tistory.com/152 to fix Windows v2.1.30+ keyboard freeze regression)",
   "hooks": {
     "UserPromptSubmit": [
       {
@@ -8,14 +8,12 @@
           {
             "type": "command",
             "command": "node \"$CLAUDE_PLUGIN_ROOT\"/scripts/run.cjs \"$CLAUDE_PLUGIN_ROOT\"/scripts/keyword-detector.mjs",
-            "timeout": 5,
-            "async": true
+            "timeout": 5
           },
           {
             "type": "command",
             "command": "node \"$CLAUDE_PLUGIN_ROOT\"/scripts/run.cjs \"$CLAUDE_PLUGIN_ROOT\"/scripts/skill-injector.mjs",
-            "timeout": 3,
-            "async": true
+            "timeout": 3
           }
         ]
       }
@@ -72,8 +70,7 @@
           {
             "type": "command",
             "command": "node \"$CLAUDE_PLUGIN_ROOT\"/scripts/run.cjs \"$CLAUDE_PLUGIN_ROOT\"/scripts/pre-tool-enforcer.mjs",
-            "timeout": 3,
-            "async": true
+            "timeout": 3
           }
         ]
       }
@@ -97,20 +94,17 @@
           {
             "type": "command",
             "command": "node \"$CLAUDE_PLUGIN_ROOT\"/scripts/run.cjs \"$CLAUDE_PLUGIN_ROOT\"/scripts/post-tool-verifier.mjs",
-            "timeout": 3,
-            "async": true
+            "timeout": 3
           },
           {
             "type": "command",
             "command": "node \"$CLAUDE_PLUGIN_ROOT\"/scripts/run.cjs \"$CLAUDE_PLUGIN_ROOT\"/scripts/project-memory-posttool.mjs",
-            "timeout": 3,
-            "async": true
+            "timeout": 3
           },
           {
             "type": "command",
             "command": "node \"$CLAUDE_PLUGIN_ROOT\"/scripts/run.cjs \"$CLAUDE_PLUGIN_ROOT\"/scripts/post-tool-rules-injector.mjs",
-            "timeout": 3,
-            "async": true
+            "timeout": 3
           }
         ]
       }
@@ -122,8 +116,7 @@
           {
             "type": "command",
             "command": "node \"$CLAUDE_PLUGIN_ROOT\"/scripts/run.cjs \"$CLAUDE_PLUGIN_ROOT\"/scripts/post-tool-use-failure.mjs",
-            "timeout": 3,
-            "async": true
+            "timeout": 3
           }
         ]
       }
@@ -135,8 +128,7 @@
           {
             "type": "command",
             "command": "node \"$CLAUDE_PLUGIN_ROOT\"/scripts/run.cjs \"$CLAUDE_PLUGIN_ROOT\"/scripts/subagent-tracker.mjs start",
-            "timeout": 3,
-            "async": true
+            "timeout": 3
           }
         ]
       }
@@ -148,8 +140,7 @@
           {
             "type": "command",
             "command": "node \"$CLAUDE_PLUGIN_ROOT\"/scripts/run.cjs \"$CLAUDE_PLUGIN_ROOT\"/scripts/subagent-tracker.mjs stop",
-            "timeout": 5,
-            "async": true
+            "timeout": 5
           },
           {
             "type": "command",
@@ -188,20 +179,17 @@
           {
             "type": "command",
             "command": "node \"$CLAUDE_PLUGIN_ROOT\"/scripts/run.cjs \"$CLAUDE_PLUGIN_ROOT\"/scripts/context-guard-stop.mjs",
-            "timeout": 5,
-            "async": true
+            "timeout": 5
           },
           {
             "type": "command",
             "command": "node \"$CLAUDE_PLUGIN_ROOT\"/scripts/run.cjs \"$CLAUDE_PLUGIN_ROOT\"/scripts/persistent-mode.mjs",
-            "timeout": 10,
-            "async": true
+            "timeout": 10
           },
           {
             "type": "command",
             "command": "node \"$CLAUDE_PLUGIN_ROOT\"/scripts/run.cjs \"$CLAUDE_PLUGIN_ROOT\"/scripts/code-simplifier.mjs",
-            "timeout": 5,
-            "async": true
+            "timeout": 5
           }
         ]
       }
@@ -213,14 +201,12 @@
           {
             "type": "command",
             "command": "node \"$CLAUDE_PLUGIN_ROOT\"/scripts/run.cjs \"$CLAUDE_PLUGIN_ROOT\"/scripts/session-end.mjs",
-            "timeout": 30,
-            "async": true
+            "timeout": 30
           },
           {
             "type": "command",
             "command": "node \"$CLAUDE_PLUGIN_ROOT\"/scripts/run.cjs \"$CLAUDE_PLUGIN_ROOT\"/scripts/wiki-session-end.mjs",
-            "timeout": 30,
-            "async": true
+            "timeout": 30
           }
         ]
       }
