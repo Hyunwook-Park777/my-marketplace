@@ -62,6 +62,13 @@
         "./agents/ballot-writer.md"
       ],
       "skills": ["./skills"]
+    },
+    {
+      "name": "oh-my-claudecode-async",
+      "source": "./plugins/oh-my-claudecode-async",
+      "description": "Fork of oh-my-claudecode v4.13.1 (Yeachan Heo, MIT) with async:true applied to UI-blocking hooks. Fixes terminal keyboard timing freeze caused by synchronous SessionStart/UserPromptSubmit/PreToolUse hooks.",
+      "version": "4.13.1-async.1",
+      "strict": false
     }
   ]
 }
