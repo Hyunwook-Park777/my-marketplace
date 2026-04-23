@@ -59,6 +59,22 @@ Output: output_dir/*.md
 - 아티팩트 제거
 - 이미지 경로 공백 처리
 
+### Step 2.5: 수식 번호 복원 (Phase 2.5)
+
+`equation_fixer.py`를 실행하여 MinerU 가 드롭한 `(N.N.N)` 식 번호와 누락된
+화살표(`→` 등)를 복원합니다. 원본 PDF 가 있어야만 수행되는 선택 단계입니다.
+
+```
+Agent: pdf-converter → Phase 2.5 (단일 파일 또는 배치)
+Input: pdf_path + md_path  (또는 pdf_dir + md_dir)
+Output: MD 에 \tag{N.N.N} 삽입 + 일부 화살표 복원
+```
+
+참고:
+- 매칭은 식 본문의 **canonicalised signature** + 선행 문단 유사도의 하이브리드
+  점수로 이루어지며, 문서 순서(monotone)를 유지한다.
+- 모든 식이 자동으로 매칭되지는 않는다 (특히 기호만 있는 식). 사용자 검토 권장.
+
 ### Step 3: 이미지 검증 + 수리 (Phase 3)
 
 1. `verify` 모드로 이미지 참조 검증

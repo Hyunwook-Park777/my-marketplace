@@ -68,6 +68,31 @@ python {scripts}/md_postprocessor.py --single "{md_path}" --output "{md_path}"
 5. 페이지 번호, 빈 링크 등 아티팩트 제거
 6. 공백 포함 이미지 경로를 angle bracket으로 감싸기
 
+### Phase 2.5: 수식 번호/화살표 복원 (선택)
+
+`equation_fixer.py`를 사용하여 MinerU 가 누락한 `(N.N.N)` 식 번호와 화살표를 복원합니다.
+원본 PDF 가 있을 때만 수행하며, PDF 에서 식 번호와 그 직전 수식 본문을 추출해 MD 의
+display 수식과 **본문 시그니처 + 선행 문단 유사도** 로 짝지은 뒤 `\tag{N.N.N}` 를
+삽입합니다. 빈 `\stackrel{…}{ }` 패턴은 `\xrightarrow{…}` 로 치환되고, 수식 내에서
+단 하나의 2-space gap 이 있을 때만 `\rightarrow` 를 삽입하여 false positive 를 억제합니다.
+
+**단일 파일:**
+```bash
+python {scripts}/equation_fixer.py --pdf "{pdf_path}" --md "{md_path}"
+```
+
+**배치:**
+```bash
+python {scripts}/equation_fixer.py --pdf-dir "{pdf_dir}" --md-dir "{output_dir}" --report "{output_dir}/equation_fix_report.json"
+```
+
+**옵션:**
+- `--threshold 0.40` – 매칭 커트라인 (기본 0.55, 낮추면 매칭 수↑ 정확도↓)
+- `--no-arrows` – 화살표 복원 끄기 (숫자 태그만 추가)
+
+매칭은 보수적이라 모든 수식에 태그가 붙지는 않는다. 특히 짧은 심볼 전용 수식은 매칭이
+어려울 수 있으므로 `report.json` 의 `unmatched` 리스트를 확인하여 필요 시 수동 보정한다.
+
 ### Phase 3: 이미지 검증 + 수리
 
 `verify_figures.py`를 사용하여 이미지 참조를 검증합니다.

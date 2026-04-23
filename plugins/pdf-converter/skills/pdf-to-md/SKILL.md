@@ -15,8 +15,9 @@ MinerU 기반 범용 PDF→Markdown 변환 파이프라인.
 
 | Script | Description |
 |--------|-------------|
-| `scripts/mineru_converter.py` | MinerU CLI 래퍼. 단일/배치 PDF→MD 변환, Windows MAX_PATH 폴백, 출력 평탄화 |
-| `scripts/md_postprocessor.py` | MD 후처리. 헤더 정리, HTML→MD 표 변환, 수식 정리, 아티팩트 제거, 이미지 경로 공백 처리 |
+| `scripts/mineru_converter.py` | MinerU CLI 래퍼. 단일/배치 PDF→MD 변환, Windows MAX_PATH 폴백, 출력 평탄화, Device Guard 안전 호출, CUDA 자동 감지 |
+| `scripts/md_postprocessor.py` | MD 후처리. 헤더 정리, HTML→MD 표 변환, display 수식 보존, 아티팩트 제거, 이미지 경로 공백 처리 |
+| `scripts/equation_fixer.py` | 수식 번호/화살표 복원. PDF 의 `(N.N.N)` 을 MD 의 display 수식과 짝지어 `\tag{N.N.N}` 삽입, 일부 화살표(`→`, stackrel 빈칸) 복원 |
 | `scripts/verify_figures.py` | 이미지 참조 검증 + MinerU 재변환 자동 복구 |
 | `scripts/verify_conversion.py` | PDF vs MD 변환 품질 검증. 5개 카테고리별 0~100점 채점 |
 
@@ -34,6 +35,7 @@ MinerU 기반 범용 PDF→Markdown 변환 파이프라인.
 ```bash
 python scripts/mineru_converter.py --single ./document.pdf --output-dir ./output/
 python scripts/md_postprocessor.py --single ./output/document.md --output ./output/document.md
+python scripts/equation_fixer.py --pdf ./document.pdf --md ./output/document.md   # 선택
 python scripts/verify_conversion.py --pdf ./document.pdf --md ./output/document.md
 ```
 
@@ -41,6 +43,7 @@ python scripts/verify_conversion.py --pdf ./document.pdf --md ./output/document.
 ```bash
 python scripts/mineru_converter.py --input-dir ./pdfs/ --output-dir ./converted/
 python scripts/md_postprocessor.py --input-dir ./converted/ --output-dir ./processed/
+python scripts/equation_fixer.py --pdf-dir ./pdfs/ --md-dir ./processed/ --report ./processed/equation_fix_report.json   # 선택
 python scripts/verify_figures.py --md-dir ./processed/ --mode verify --check-images
 python scripts/verify_conversion.py --pdf-dir ./pdfs/ --md-dir ./processed/ --output report.json
 ```
