@@ -1,0 +1,9 @@
+{
+  "name": "journal-translator",
+  "version": "1.0.0",
+  "description": "국제 학술 저널(PDF)을 한국어로 전문 번역하는 5-Phase 파이프라인. PDF→MD 변환, 그림/그래프 보존, 교차 검증, 기계공학 전문가 수준 영한 번역, 이미지 포함 Word 생성.",
+  "author": {
+    "name": "Hyunwook Park",
+    "email": "orientpine@gmail.com"
+  }
+}

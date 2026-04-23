@@ -1,0 +1,10 @@
+{
+  "name": "pdf-converter",
+  "version": "1.0.0",
+  "description": "MinerU 기반 범용 PDF→Markdown 변환. 수백 페이지 PDF의 텍스트/그림/수식/표를 손실 없이 변환하고, PDF 대비 MD 완전성을 검증합니다.",
+  "author": {
+    "name": "Baekdong Cha",
+    "email": "orientpine@gmail.com"
+  },
+  "license": "MIT"
+}

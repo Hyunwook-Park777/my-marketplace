@@ -51,6 +51,14 @@
       "skills": ["./skills"]
     },
     {
+      "name": "journal-translator",
+      "source": "./plugins/journal-translator",
+      "description": "국제 학술 저널(PDF)을 한국어로 전문 번역하는 5-Phase 파이프라인. PDF→MD 변환, 그림/그래프 보존, 교차 검증, 기계공학 전문가 수준 영한 번역, 이미지 포함 Word 생성.",
+      "version": "1.0.0",
+      "strict": false,
+      "skills": ["./skills"]
+    },
+    {
       "name": "iso-reviewer",
       "source": "./plugins/iso-reviewer",
       "description": "ISO 표준 문서의 IS/DIS 버전 비교 분석, 전문가 Excel 교차 검증, 도메인 멘탈모델 기반 심층 분석, DIS 투표양식 자동 생성을 수행하는 플러그인. 6-Phase 파이프라인으로 PDF 변환부터 Ballot 생성까지 지원합니다.",
@@ -69,6 +77,17 @@
       "description": "Fork of oh-my-claudecode v4.13.1 (Yeachan Heo, MIT) with async:true applied to UI-blocking hooks. Fixes terminal keyboard timing freeze caused by synchronous SessionStart/UserPromptSubmit/PreToolUse hooks.",
       "version": "4.13.1-async.1",
       "strict": false
+    },
+    {
+      "name": "pdf-converter",
+      "source": "./plugins/pdf-converter",
+      "description": "MinerU 기반 범용 PDF→Markdown 변환. 수백 페이지 PDF의 텍스트/그림/수식/표를 손실 없이 변환하고, PDF 대비 MD 완전성을 검증(0~100점)합니다. 4-Phase 파이프라인: 변환→후처리→이미지검증→품질검증.",
+      "version": "1.0.0",
+      "strict": true,
+      "agents": [
+        "./agents/pdf-converter.md"
+      ],
+      "skills": ["./skills"]
     }
   ]
 }
