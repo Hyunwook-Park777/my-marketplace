@@ -165,7 +165,7 @@ def repair_missing_figures(
 
         print(f"[{i}/{len(missing_files)}] Reconverting: {pdf_path.name}")
 
-        # MinerU 재변환
+        # MinerU 재변환 (CUDA 자동 감지 - 기본값)
         try:
             cmd = [
                 sys.executable, str(converter_script),

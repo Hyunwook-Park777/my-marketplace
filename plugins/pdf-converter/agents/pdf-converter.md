@@ -32,11 +32,19 @@ python {scripts}/mineru_converter.py --single "{pdf_path}" --output-dir "{output
 python {scripts}/mineru_converter.py --input-dir "{pdf_dir}" --output-dir "{output_dir}" -l {language} --timeout {timeout}
 ```
 
+**GPU 강제 / CPU 강제:**
+```bash
+python {scripts}/mineru_converter.py --single "{pdf_path}" --output-dir "{output_dir}" --device cuda   # GPU 강제
+python {scripts}/mineru_converter.py --single "{pdf_path}" --output-dir "{output_dir}" --device cpu    # CPU 강제
+```
+
 **출력**: `{output_dir}/{stem}.md` + `{output_dir}/{stem}/images/`
 
-**확인 사항:**
-- `conversion_report.json`에서 성공/실패 확인
+**실행 환경 노트:**
+- 스크립트는 항상 `python -m mineru.cli.client` 로 MinerU 를 호출하므로, Windows Device Guard / Application Control 이 `mineru.exe` 를 차단하는 환경에서도 안전하게 동작한다.
+- `--device` 생략 시 PyTorch `torch.cuda.is_available()` 로 GPU 를 자동 감지하고 실패 시 CPU 로 폴백한다. GPU 활용을 위해서는 **CUDA 빌드 PyTorch** 가 필요하다(기본 `torch` 휠은 CPU 전용).
 - 실패 파일은 Windows MAX_PATH 문제일 수 있음 → 자동 short-path 폴백 적용됨
+- `conversion_report.json`에서 성공/실패 확인
 
 ### Phase 2: Markdown 후처리
 

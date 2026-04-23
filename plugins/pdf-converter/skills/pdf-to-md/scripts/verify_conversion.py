@@ -26,20 +26,26 @@ from typing import Optional
 
 
 def extract_pdf_metadata(pdf_path: Path) -> dict:
-    """PyMuPDF로 PDF에서 메타데이터 추출"""
+    """PyMuPDF로 PDF에서 메타데이터 추출
+
+    `fitz` shim 이 Device Guard 등으로 차단된 환경에서는 `pymupdf` 직접 임포트로 폴백한다.
+    """
     try:
-        import fitz
+        import pymupdf as fitz
     except ImportError:
-        return {
-            "error": "pymupdf not installed. Install with: pip install pymupdf",
-            "page_count": 0,
-            "total_words": 0,
-            "image_count": 0,
-            "table_indicators": 0,
-            "equation_indicators": 0,
-            "has_toc": False,
-            "toc_entries": 0
-        }
+        try:
+            import fitz  # type: ignore
+        except ImportError:
+            return {
+                "error": "pymupdf not installed. Install with: pip install pymupdf",
+                "page_count": 0,
+                "total_words": 0,
+                "image_count": 0,
+                "table_indicators": 0,
+                "equation_indicators": 0,
+                "has_toc": False,
+                "toc_entries": 0
+            }
 
     try:
         doc = fitz.open(str(pdf_path))

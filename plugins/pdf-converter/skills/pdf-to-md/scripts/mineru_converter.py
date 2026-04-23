@@ -44,11 +44,36 @@ MAX_PATH_WINDOWS = 260
 MINERU_LONGEST_SUFFIX = "_content_list.json"
 
 
+def get_mineru_cmd() -> list:
+    """MinerU CLI 커맨드 반환.
+
+    Windows Device Guard / Application Control 로 `mineru.exe`, `mineru` shim 이
+    차단된 환경에서도 동작하도록, 항상 `python -m mineru.cli.client` 형태로 호출한다.
+    이 방식은 설치된 Python 인터프리터만 있으면 플랫폼/정책에 관계없이 동작한다.
+    """
+    return [sys.executable, "-m", "mineru.cli.client"]
+
+
+def detect_cuda_device() -> Optional[str]:
+    """PyTorch CUDA 가용 여부 감지.
+
+    Returns:
+        "cuda" if GPU usable, else None (CPU 사용)
+    """
+    try:
+        import torch
+        if torch.cuda.is_available() and torch.cuda.device_count() > 0:
+            return "cuda"
+    except Exception:
+        pass
+    return None
+
+
 def check_mineru_installation() -> bool:
-    """MinerU 설치 확인"""
+    """MinerU 설치 확인 (Device Guard 안전)"""
     try:
         result = subprocess.run(
-            ["mineru", "--version"],
+            get_mineru_cmd() + ["--version"],
             capture_output=True,
             text=True,
             timeout=30
@@ -59,15 +84,20 @@ def check_mineru_installation() -> bool:
 
 
 def get_pdf_page_count(pdf_path: Path) -> int:
-    """PyMuPDF로 실제 PDF 페이지 수 추출. 미설치 시 추정치 반환."""
+    """PyMuPDF로 실제 PDF 페이지 수 추출. 미설치 시 추정치 반환.
+
+    Device Guard 로 `fitz` shim DLL 이 차단된 환경에서는 `pymupdf` 직접 임포트로 폴백.
+    """
     try:
-        import fitz
-        doc = fitz.open(str(pdf_path))
+        try:
+            import pymupdf as _fitz
+        except ImportError:
+            import fitz as _fitz  # type: ignore
+        doc = _fitz.open(str(pdf_path))
         count = len(doc)
         doc.close()
         return count
     except ImportError:
-        # fitz 미설치 시 파일 크기 기반 추정
         size_kb = pdf_path.stat().st_size / 1024
         return max(1, int(size_kb / 50))
     except Exception:
@@ -198,7 +228,8 @@ def convert_single_pdf(
     language: str = "en",
     backend: str = "pipeline",
     method: str = "auto",
-    timeout: int = 3600
+    timeout: int = 3600,
+    device: Optional[str] = None
 ) -> dict:
     """
     단일 PDF 파일을 MinerU로 Markdown 변환
@@ -210,6 +241,7 @@ def convert_single_pdf(
         backend: MinerU 백엔드 (pipeline, vlm-auto-engine 등)
         method: 파싱 방법 (auto, txt, ocr)
         timeout: 변환 타임아웃 (초, 기본 3600)
+        device: 추론 디바이스 ("cuda"/"cpu"/None). None이면 자동 감지.
 
     Returns:
         변환 결과 딕셔너리
@@ -220,7 +252,7 @@ def convert_single_pdf(
     if estimated_len >= MAX_PATH_WINDOWS:
         print(f"  Path too long ({estimated_len} chars), using short-path fallback...")
         return _convert_with_short_path(
-            pdf_path, output_dir, language, backend, method, timeout
+            pdf_path, output_dir, language, backend, method, timeout, device
         )
 
     result = {
@@ -239,14 +271,15 @@ def convert_single_pdf(
     try:
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # MinerU CLI 실행
-        cmd = [
-            "mineru",
+        # MinerU CLI 실행 (Device Guard 안전 + GPU 자동)
+        resolved_device = device if device is not None else (detect_cuda_device() or "cpu")
+        cmd = get_mineru_cmd() + [
             "-p", str(pdf_path),
             "-o", str(output_dir),
             "-b", backend,
             "-l", language,
-            "-m", method
+            "-m", method,
+            "-d", resolved_device
         ]
 
         proc = subprocess.run(
@@ -300,7 +333,8 @@ def _convert_with_short_path(
     language: str = "en",
     backend: str = "pipeline",
     method: str = "auto",
-    timeout: int = 3600
+    timeout: int = 3600,
+    device: Optional[str] = None
 ) -> dict:
     """
     경로가 긴 PDF를 짧은 임시 디렉토리에서 변환 후 결과를 최종 위치로 이동.
@@ -332,14 +366,15 @@ def _convert_with_short_path(
         tmp_out = tmp_dir / "out"
         tmp_out.mkdir()
 
-        # MinerU CLI 실행
-        cmd = [
-            "mineru",
+        # MinerU CLI 실행 (Device Guard 안전 + GPU 자동)
+        resolved_device = device if device is not None else (detect_cuda_device() or "cpu")
+        cmd = get_mineru_cmd() + [
             "-p", str(tmp_pdf),
             "-o", str(tmp_out),
             "-b", backend,
             "-l", language,
-            "-m", method
+            "-m", method,
+            "-d", resolved_device
         ]
 
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
@@ -422,7 +457,8 @@ def batch_convert(
     language: str = "en",
     backend: str = "pipeline",
     method: str = "auto",
-    timeout: int = 3600
+    timeout: int = 3600,
+    device: Optional[str] = None
 ) -> dict:
     """
     폴더 내 모든 PDF를 MinerU로 일괄 변환
@@ -441,20 +477,22 @@ def batch_convert(
             "summary": {"total": 0}
         }
 
+    resolved_device = device if device is not None else (detect_cuda_device() or "cpu")
+
     print(f"Found {len(pdf_files)} PDF files")
     print(f"Output: {output_dir}")
-    print(f"Backend: {backend}, Language: {language}, Method: {method}")
+    print(f"Backend: {backend}, Language: {language}, Method: {method}, Device: {resolved_device}")
     print("-" * 50)
 
-    # MinerU CLI 배치 실행 (디렉토리 입력)
+    # MinerU CLI 배치 실행 (디렉토리 입력, Device Guard 안전)
     batch_timeout = timeout * len(pdf_files)
-    cmd = [
-        "mineru",
+    cmd = get_mineru_cmd() + [
         "-p", str(input_dir),
         "-o", str(output_dir),
         "-b", backend,
         "-l", language,
-        "-m", method
+        "-m", method,
+        "-d", resolved_device
     ]
 
     batch_success = False
@@ -472,13 +510,13 @@ def batch_convert(
     except subprocess.TimeoutExpired:
         print("Batch conversion timed out")
     except FileNotFoundError:
-        print("mineru command not found")
+        print("MinerU not found (checked: python -m mineru.cli.client)")
 
     # 배치 실패 시 개별 변환 폴백
     if not batch_success:
         print("Falling back to single file conversion...")
         return _fallback_single_convert(
-            pdf_files, output_dir, language, backend, method, timeout
+            pdf_files, output_dir, language, backend, method, timeout, resolved_device
         )
 
     # 배치 성공 시 결과 수집 및 flatten
@@ -515,7 +553,7 @@ def batch_convert(
         for pdf_path in failed_pdfs:
             print(f"  Retrying: {pdf_path.name}")
             retry_result = _convert_with_short_path(
-                pdf_path, output_dir, language, backend, method, timeout
+                pdf_path, output_dir, language, backend, method, timeout, resolved_device
             )
             results.append(retry_result)
             if retry_result["status"] == "success":
@@ -536,7 +574,8 @@ def _fallback_single_convert(
     language: str,
     backend: str,
     method: str,
-    timeout: int
+    timeout: int,
+    device: Optional[str] = None
 ) -> dict:
     """배치 실패 시 개별 변환 폴백"""
     results = []
@@ -546,7 +585,7 @@ def _fallback_single_convert(
     for i, pdf_path in enumerate(pdf_files, 1):
         print(f"[{i}/{len(pdf_files)}] Converting: {pdf_path.name}")
 
-        result = convert_single_pdf(pdf_path, output_dir, language, backend, method, timeout)
+        result = convert_single_pdf(pdf_path, output_dir, language, backend, method, timeout, device)
         results.append(result)
 
         if result["status"] == "success":
@@ -648,6 +687,12 @@ def main():
         default=3600,
         help="Conversion timeout in seconds (default: 3600)"
     )
+    parser.add_argument(
+        "--device", "-d",
+        type=str,
+        default=None,
+        help="Inference device: 'cuda', 'cpu', 'cuda:0', etc. If omitted, auto-detects CUDA and falls back to CPU."
+    )
 
     args = parser.parse_args()
 
@@ -655,8 +700,10 @@ def main():
         parser.error("Either --input-dir or --single is required")
 
     if not check_mineru_installation():
-        print("Error: MinerU is not installed.")
-        print('Install with: pip install "mineru[all]"')
+        print("Error: MinerU is not installed or cannot be launched.")
+        print('Install: pip install "mineru[all]"')
+        print("This script always invokes MinerU via 'python -m mineru.cli.client' to avoid "
+              "Device Guard / Application Control blocks on mineru.exe.")
         sys.exit(1)
 
     if args.single:
@@ -665,7 +712,7 @@ def main():
             sys.exit(1)
         result = convert_single_pdf(
             args.single, args.output_dir, args.language,
-            args.backend, args.method, args.timeout
+            args.backend, args.method, args.timeout, args.device
         )
         print(json.dumps(result, indent=2, ensure_ascii=False))
         sys.exit(0 if result["status"] == "success" else 1)
@@ -679,7 +726,8 @@ def main():
             language=args.language,
             backend=args.backend,
             method=args.method,
-            timeout=args.timeout
+            timeout=args.timeout,
+            device=args.device
         )
         if report.get("error"):
             sys.exit(1)

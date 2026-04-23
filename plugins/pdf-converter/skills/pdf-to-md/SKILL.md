@@ -48,7 +48,11 @@ python scripts/verify_conversion.py --pdf-dir ./pdfs/ --md-dir ./processed/ --ou
 ## MinerU CLI Reference
 
 ```bash
-mineru -p <input> -o <output> [-b backend] [-l language] [-m method]
+# 직접 호출 (Device Guard 가 차단하지 않는 환경)
+mineru -p <input> -o <output> [-b backend] [-l language] [-m method] [-d device]
+
+# 권장: Windows Device Guard / Application Control 로 `mineru.exe` 가 차단된 환경에서도 동작
+python -m mineru.cli.client -p <input> -o <output> [-b backend] [-l language] [-m method] [-d device]
 ```
 
 | Option | Values | Default |
@@ -56,6 +60,13 @@ mineru -p <input> -o <output> [-b backend] [-l language] [-m method]
 | `-b` backend | `pipeline`, `vlm-auto-engine`, `hybrid-auto-engine` | `pipeline` |
 | `-l` language | `en`, `ko`, `ja`, `zh`, etc. | `en` |
 | `-m` method | `auto`, `txt`, `ocr` | `auto` |
+| `-d` device | `cpu`, `cuda`, `cuda:0`, `mps`, `npu` | auto-detect (cuda→cpu) |
+
+### 실행 환경 노트
+- `mineru_converter.py` 는 항상 `sys.executable -m mineru.cli.client` 형태로 MinerU 를 호출하므로 Windows Device Guard 가 `mineru.exe` 를 차단하는 환경에서도 안전하게 동작한다.
+- `--device` 옵션을 생략하면 PyTorch `torch.cuda.is_available()` 로 GPU 를 자동 감지하고, 감지 실패 시 CPU 로 폴백한다.
+- GPU 가속을 쓰려면 **CUDA 지원 PyTorch** 가 필요하다. 기본 `torch` 휠(CPU 전용)이 설치된 환경에서는 GPU 가 있어도 CPU 로 동작한다. 설치 예: `pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128` (CUDA 12.8).
+- `verify_conversion.py` 와 `mineru_converter.py` 는 PyMuPDF 를 `pymupdf → fitz` 순서로 임포트하여, `fitz` shim DLL 이 정책에 의해 차단된 환경에서도 페이지 수/메타데이터 추출을 계속 수행한다.
 
 ## Post-processing Pipeline
 

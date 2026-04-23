@@ -66,14 +66,23 @@ def normalize_section_headers(content: str) -> str:
 
 
 def clean_equations(content: str) -> str:
-    """수식 정리"""
+    """수식 정리 (display 수식 블록 앞뒤 빈 줄 보장).
 
-    content = re.sub(r'\$\s+', '$', content)
-    content = re.sub(r'\s+\$', '$', content)
-
-    content = re.sub(r'([^\n])\n\$\$', r'\1\n\n$$', content)
-    content = re.sub(r'\$\$\n([^\n])', r'$$\n\n\1', content)
-
+    주의: `\\s+` 는 줄바꿈을 포함하므로 `$` 주변 `\\s+` 를 전부 제거하면
+    display 수식 `$$...$$` 의 줄바꿈이 사라지고 본문과 수식이 한 줄에 달라붙는다.
+    또한 Obsidian 등 일부 렌더러는 `text $...$ text` 처럼 `$` 주변 공백이 있어야
+    인라인 수식을 올바르게 인식하므로, 주변 공백을 함부로 깎지 않는다.
+    """
+    # display 수식이 직전 본문과 한 줄에 붙어 있으면 빈 줄을 삽입
+    content = re.sub(r'(\S)\n\$\$', r'\1\n\n$$', content)
+    content = re.sub(r'\$\$\n(\S)', r'$$\n\n\1', content)
+    # display 수식이 본문과 같은 줄에 혼재되어 있으면 줄바꿈으로 분리
+    #   (MinerU 가 때때로 `... as $$math$$ ...` 형태로 뽑는 경우 방어)
+    content = re.sub(
+        r'([^\n])\s*\$\$\s*([^\n$][^$]*?)\s*\$\$\s*([^\n])',
+        r'\1\n\n$$\n\2\n$$\n\n\3',
+        content
+    )
     return content
 
 
