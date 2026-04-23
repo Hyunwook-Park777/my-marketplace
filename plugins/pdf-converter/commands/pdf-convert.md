@@ -59,21 +59,28 @@ Output: output_dir/*.md
 - 아티팩트 제거
 - 이미지 경로 공백 처리
 
-### Step 2.5: 수식 번호 복원 (Phase 2.5)
+### Step 2.5: 수식 번호 / 화살표 복원 (Phase 2.5)
 
-`equation_fixer.py`를 실행하여 MinerU 가 드롭한 `(N.N.N)` 식 번호와 누락된
-화살표(`→` 등)를 복원합니다. 원본 PDF 가 있어야만 수행되는 선택 단계입니다.
+`equation_fixer.py`를 실행하여 MinerU 가 드롭한 `(N.N.N)` 식 번호와 누락된 화학
+반응 화살표(`→`, `⇌`)를 복원합니다. 원본 PDF 가 있어야만 수행되는 선택 단계.
 
 ```
 Agent: pdf-converter → Phase 2.5 (단일 파일 또는 배치)
 Input: pdf_path + md_path  (또는 pdf_dir + md_dir)
-Output: MD 에 \tag{N.N.N} 삽입 + 일부 화살표 복원
+Output: MD 에 \tag{N.N.N} 삽입 + 화살표 적극 복원
 ```
 
+화살표 복원은 **매칭되지 않은 수식을 포함한 모든 display 수식**에서 실행된다:
+  - `\stackrel{X}{ }` → `\xrightarrow{X}` (중첩 중괄호 X 지원)
+  - `\stackrel{ }{X}` → `\xrightarrow[X]{}`
+  - 수식 본문 중간의 2-space 연속 공백 → `\rightarrow`
+    (LaTeX 명시 spacing `\quad`, `\,` 등 인접부는 스킵)
+
 참고:
-- 매칭은 식 본문의 **canonicalised signature** + 선행 문단 유사도의 하이브리드
-  점수로 이루어지며, 문서 순서(monotone)를 유지한다.
-- 모든 식이 자동으로 매칭되지는 않는다 (특히 기호만 있는 식). 사용자 검토 권장.
+- 번호 매칭은 식 본문의 **canonicalised signature** + 선행 문단 유사도의
+  하이브리드 점수로 이루어지며, 문서 순서(monotone)를 유지한다.
+- `→` 와 `⇌` 은 PDF 원본에서 이미 구분이 불가능하므로 기본 `\rightarrow` 로 복원.
+  가역 반응은 필요 시 수동으로 `\rightleftharpoons` 로 교정한다.
 
 ### Step 3: 이미지 검증 + 수리 (Phase 3)
 

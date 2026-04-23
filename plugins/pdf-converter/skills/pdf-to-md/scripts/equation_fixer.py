@@ -346,30 +346,50 @@ def apply_tags(
 ) -> Tuple[str, dict]:
     """Rewrite MD text so each matched display equation carries a \\tag{N.N.N}.
 
-    Applies replacements from last to first so the earlier offsets remain
+    If `restore_arrows` is on, additionally restore missing reaction arrows
+    in **every** display equation (matched or not). Arrow loss is a
+    property of MinerU's OCR, not of whether we could assign a label, so
+    the restoration pass runs independently of the tagging pass.
+
+    Applies replacements from last to first so earlier offsets remain
     valid. Returns the new text and a statistics dict suitable for a report.
     """
-    edits: List[Tuple[int, int, str]] = []  # (start, end, replacement)
-    tagged = 0
-    arrow_fixes = 0
-
-    for label, eq, score in matches:
+    # Figure out which equations we're going to tag, keyed by index
+    tag_by_idx: dict = {}
+    for label, eq, _score in matches:
         if eq is None:
             continue
+        if eq.index in tag_by_idx:
+            continue
+        tag_by_idx[eq.index] = label.number
+
+    # Collect edits for every display equation that either gets a tag or an
+    # arrow restoration (or both).
+    all_eqs = find_display_equations(md_text)
+    edits: List[Tuple[int, int, str]] = []
+    tagged = 0
+    arrow_fixes = 0
+    arrow_ops = 0
+    for eq in all_eqs:
         body = eq.body.rstrip()
-        # Skip if already tagged (defensive)
         if TAG_RE.search(body):
             continue
         new_body = body
-        if restore_arrows and label.has_arrow and not eq.has_arrow_cmd:
-            new_body, changed = _restore_arrow(new_body)
-            if changed:
+        ops = 0
+        if restore_arrows and not eq.has_arrow_cmd:
+            new_body, ops = _restore_arrow(new_body)
+            if ops > 0:
                 arrow_fixes += 1
-        new_block = f"$$\n{new_body} \\tag{{{label.number}}}\n$$"
+                arrow_ops += ops
+        tag_num = tag_by_idx.get(eq.index)
+        if tag_num:
+            new_body = f"{new_body} \\tag{{{tag_num}}}"
+            tagged += 1
+        elif ops == 0:
+            continue
+        new_block = f"$$\n{new_body}\n$$"
         edits.append((eq.start, eq.end, new_block))
-        tagged += 1
 
-    # Apply last-to-first
     new_text = md_text
     for start, end, replacement in sorted(edits, key=lambda e: e[0], reverse=True):
         new_text = new_text[:start] + replacement + new_text[end:]
@@ -378,7 +398,9 @@ def apply_tags(
         "labels_in_pdf": len(matches),
         "matched": tagged,
         "unmatched": sum(1 for _, eq, _ in matches if eq is None),
+        "display_equations": len(all_eqs),
         "arrow_restorations": arrow_fixes,
+        "arrow_ops": arrow_ops,
     }
     return new_text, stats
 
@@ -386,28 +408,79 @@ def apply_tags(
 # Pattern: two or more consecutive ASCII spaces between two math tokens
 DOUBLE_SPACE_RE = re.compile(r"(\S)(  +)(\S)")
 
+# Balanced-brace matcher for `\stackrel{…}{ }` style arrow stubs. Handles one
+# level of nested `{…}` inside the first argument (e.g. `\stackrel{\mathrm{Hg}}{}`).
+STACKREL_EMPTY_RE = re.compile(
+    r"\\stackrel\s*\{((?:[^{}]|\{[^{}]*\})*)\}\s*\{\s*\}"
+)
+# Mirror: `\stackrel{ }{label}` → labelled arrow below
+STACKREL_EMPTY_TOP_RE = re.compile(
+    r"\\stackrel\s*\{\s*\}\s*\{((?:[^{}]|\{[^{}]*\})*)\}"
+)
 
-def _restore_arrow(math_body: str) -> Tuple[str, bool]:
-    """Conservatively insert `\\rightarrow` (or `\\xrightarrow`) where MinerU
-    dropped the arrow character. Only fires in unambiguous cases.
+# LaTeX explicit spacing macros that should NOT be rewritten as arrows
+LATEX_SPACING = (r"\qquad", r"\quad", r"\,", r"\;", r"\:", r"\!", r"\ ", r"~")
+
+
+def _restore_arrow(math_body: str) -> Tuple[str, int]:
+    """Restore missing reaction arrows MinerU dropped.
+
+    Three independent rewrites fire; they are all safe to apply together:
+
+    1. `\\stackrel{X}{ }` → `\\xrightarrow{X}`
+       MinerU knew an arrow with an over-label was present but couldn't
+       identify the character itself. Balanced-brace aware so nested
+       `\\mathrm{Hg}` etc. inside X is handled.
+
+    2. `\\stackrel{ }{X}` → `\\xrightarrow[X]{}`
+       Same idea but with the label below the arrow.
+
+    3. Any run of 2+ ASCII spaces between two math tokens → `\\rightarrow`
+       This is the most common pattern: MinerU replaces an arrow glyph
+       (`→` / `⇌` / `↔` ...) it can't identify with blank space. We avoid
+       false positives by skipping gaps adjacent to explicit LaTeX spacing
+       macros (`\\quad`, `\\,`, etc.) and gaps at the very start/end of
+       the body.
+
+    We do NOT try to distinguish `→` from `⇌`: the PDF's original arrow
+    character is lost by PyMuPDF's text extractor, so we pick the most
+    common variant (`\\rightarrow`) and leave finer disambiguation to
+    the human reviewer.
+
+    Returns the new body and the number of rewrites performed.
     """
-    # Case 1: `\stackrel{label}{ }` — MinerU knew an arrow was there but could
-    # not identify the character. Convert to `\xrightarrow{label}`.
-    fixed = re.sub(
-        r"\\stackrel\s*\{([^{}]*)\}\s*\{\s*\}",
-        r"\\xrightarrow{\1}",
-        math_body,
-    )
-    if fixed != math_body:
-        return fixed, True
+    ops = 0
+    new_body = math_body
 
-    # Case 2: exactly one "two-space gap between tokens" in the body.
-    # Multiple gaps are ambiguous and left alone.
-    gaps = list(DOUBLE_SPACE_RE.finditer(math_body))
-    if len(gaps) == 1:
-        g = gaps[0]
-        return math_body[:g.start(2)] + r" \rightarrow " + math_body[g.end(2):], True
-    return math_body, False
+    # 1) \stackrel{X}{ } -> \xrightarrow{X}
+    new_body, n1 = STACKREL_EMPTY_RE.subn(r"\\xrightarrow{\1}", new_body)
+    ops += n1
+
+    # 2) \stackrel{ }{X} -> \xrightarrow[X]{}
+    new_body, n2 = STACKREL_EMPTY_TOP_RE.subn(r"\\xrightarrow[\1]{}", new_body)
+    ops += n2
+
+    # 3) 2-space gaps -> \rightarrow. Replace from right to left to keep
+    # earlier match offsets valid.
+    gaps = list(DOUBLE_SPACE_RE.finditer(new_body))
+    for g in reversed(gaps):
+        gap_start = g.start(2)
+        gap_end = g.end(2)
+        # Safety: don't rewrite gaps that are next to LaTeX explicit-spacing
+        # macros -- those are deliberate spacing, not a dropped arrow.
+        left_ctx = new_body[max(0, gap_start - 8):gap_start]
+        right_ctx = new_body[gap_end:gap_end + 8]
+        if any(left_ctx.endswith(sp) for sp in LATEX_SPACING):
+            continue
+        if any(right_ctx.lstrip().startswith(sp) for sp in LATEX_SPACING):
+            continue
+        # Safety: gap must be in the "middle" of the equation body
+        if gap_start < 2 or gap_end > len(new_body) - 2:
+            continue
+        new_body = new_body[:gap_start] + r" \rightarrow " + new_body[gap_end:]
+        ops += 1
+
+    return new_body, ops
 
 
 # ---------------------------------------------------------------------------

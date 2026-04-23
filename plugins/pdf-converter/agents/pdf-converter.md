@@ -70,11 +70,23 @@ python {scripts}/md_postprocessor.py --single "{md_path}" --output "{md_path}"
 
 ### Phase 2.5: 수식 번호/화살표 복원 (선택)
 
-`equation_fixer.py`를 사용하여 MinerU 가 누락한 `(N.N.N)` 식 번호와 화살표를 복원합니다.
-원본 PDF 가 있을 때만 수행하며, PDF 에서 식 번호와 그 직전 수식 본문을 추출해 MD 의
-display 수식과 **본문 시그니처 + 선행 문단 유사도** 로 짝지은 뒤 `\tag{N.N.N}` 를
-삽입합니다. 빈 `\stackrel{…}{ }` 패턴은 `\xrightarrow{…}` 로 치환되고, 수식 내에서
-단 하나의 2-space gap 이 있을 때만 `\rightarrow` 를 삽입하여 false positive 를 억제합니다.
+`equation_fixer.py`를 사용하여 MinerU 가 누락한 `(N.N.N)` 식 번호와 화학 반응
+화살표를 복원합니다. 원본 PDF 가 있을 때만 수행하며, PDF 에서 식 번호와 그 직전
+수식 본문을 추출해 MD 의 display 수식과 **본문 시그니처 + 선행 문단 유사도** 로
+짝지은 뒤 `\tag{N.N.N}` 을 삽입합니다.
+
+화살표 복원은 **모든 display 수식**에 적용되며 (매칭되지 않은 수식 포함), 다음 세
+패턴을 모두 처리합니다:
+
+1. `\stackrel{X}{ }` → `\xrightarrow{X}`  (중첩 중괄호 X 지원)
+2. `\stackrel{ }{X}` → `\xrightarrow[X]{}`
+3. 수식 본문 중간의 2-space 연속 공백 → `\rightarrow`
+   (LaTeX 명시 spacing `\quad`, `\,` 등 인접부는 건너뜀, 끝점 인접부도 제외)
+
+PyMuPDF 가 PDF 의 `→` / `⇌` 유니코드를 `±±`, `«±`, `-*`, `^` 등 잘못 추출하는
+문제를 우회하기 위해, PDF 측 화살표 유무에 의존하지 않고 MD 측 2-space gap 만으로
+복원을 수행합니다. `→` 와 `⇌` 은 PDF 원본에서 이미 분간이 불가능하므로 `\rightarrow`
+를 기본으로 사용하며, 가역 반응은 필요 시 수동으로 `\rightleftharpoons` 로 교정합니다.
 
 **단일 파일:**
 ```bash
