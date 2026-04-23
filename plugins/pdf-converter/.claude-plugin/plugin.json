@@ -1,7 +1,7 @@
 {
   "name": "pdf-converter",
-  "version": "1.2.1",
-  "description": "MinerU 기반 범용 PDF→Markdown 변환. 수백 페이지 PDF의 텍스트/그림/수식/표를 손실 없이 변환하고, PDF 대비 MD 완전성을 검증합니다. Device Guard 안전 (python -m mineru.cli.client), CUDA GPU 자동 감지, 수식 후처리 보존, 식 번호 `(N.N.N)` 및 화학 반응 화살표(\\rightarrow, \\xrightarrow) 적극 복원.",
+  "version": "1.2.2",
+  "description": "MinerU 기반 범용 PDF→Markdown 변환. 수백 페이지 PDF의 텍스트/그림/수식/표를 손실 없이 변환하고, PDF 대비 MD 완전성을 검증합니다. Device Guard 안전 (python -m mineru.cli.client), CUDA GPU 자동 감지, 수식 후처리 보존, 식 번호 `(N.N.N)` 및 화학 반응 화살표 적극 복원 (단방향 `\\rightarrow` / 양방향 `\\rightleftharpoons` 자동 구분).",
   "author": {
     "name": "Baekdong Cha",
     "email": "orientpine@gmail.com"

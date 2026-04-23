@@ -70,17 +70,22 @@ Input: pdf_path + md_path  (또는 pdf_dir + md_dir)
 Output: MD 에 \tag{N.N.N} 삽입 + 화살표 적극 복원
 ```
 
-화살표 복원은 **매칭되지 않은 수식을 포함한 모든 display 수식**에서 실행된다:
+화살표 복원은 **매칭되지 않은 수식을 포함한 모든 display 수식**에서 실행되며,
+PDF 의 placeholder 패턴을 분석해 **단방향 / 양방향을 자동 구분**한다:
   - `\stackrel{X}{ }` → `\xrightarrow{X}` (중첩 중괄호 X 지원)
   - `\stackrel{ }{X}` → `\xrightarrow[X]{}`
-  - 수식 본문 중간의 2-space 연속 공백 → `\rightarrow`
-    (LaTeX 명시 spacing `\quad`, `\,` 등 인접부는 스킵)
+  - 수식 본문의 2-space 연속 공백 →
+    - PDF 원문에 `±±`, `«±`, `^`, `⇌` 이 나타나면 → `\rightleftharpoons`
+    - PDF 원문에 `->`, `-*`, `→`, `S` 이 나타나면 → `\rightarrow`
+    - PDF 증거가 없으면 (미매칭 수식 포함) → `\rightarrow` (안전 기본값)
+  - LaTeX 명시 spacing `\quad`, `\,` 등 인접부는 스킵
 
 참고:
 - 번호 매칭은 식 본문의 **canonicalised signature** + 선행 문단 유사도의
   하이브리드 점수로 이루어지며, 문서 순서(monotone)를 유지한다.
-- `→` 와 `⇌` 은 PDF 원본에서 이미 구분이 불가능하므로 기본 `\rightarrow` 로 복원.
-  가역 반응은 필요 시 수동으로 `\rightleftharpoons` 로 교정한다.
+- PyMuPDF 가 `→` / `⇌` 유니코드를 다양한 Latin-1 문자로 왜곡 추출하므로
+  placeholder 패턴 사전을 기반으로 복원. 확신 없는 경우 `\rightarrow` 를 기본값으로 하고
+  사용자가 필요 시 `\rightleftharpoons` 로 교정한다.
 
 ### Step 3: 이미지 검증 + 수리 (Phase 3)
 

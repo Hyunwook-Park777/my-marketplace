@@ -83,10 +83,18 @@ python {scripts}/md_postprocessor.py --single "{md_path}" --output "{md_path}"
 3. 수식 본문 중간의 2-space 연속 공백 → `\rightarrow`
    (LaTeX 명시 spacing `\quad`, `\,` 등 인접부는 건너뜀, 끝점 인접부도 제외)
 
-PyMuPDF 가 PDF 의 `→` / `⇌` 유니코드를 `±±`, `«±`, `-*`, `^` 등 잘못 추출하는
-문제를 우회하기 위해, PDF 측 화살표 유무에 의존하지 않고 MD 측 2-space gap 만으로
-복원을 수행합니다. `→` 와 `⇌` 은 PDF 원본에서 이미 분간이 불가능하므로 `\rightarrow`
-를 기본으로 사용하며, 가역 반응은 필요 시 수동으로 `\rightleftharpoons` 로 교정합니다.
+PyMuPDF 가 PDF 의 `→` / `⇌` 유니코드를 `±±`, `«±`, `-*`, `^`, `S`, `->` 등
+다양한 Latin-1 placeholder 로 잘못 추출합니다. 스크립트는 이 **placeholder
+패턴 사전** 을 사용하여 PDF 의 `(N.N.N)` 라벨 주변에서 실제 화살표 방향을 복원합니다:
+
+- **단방향 placeholder** (`->`, `-*`, `→`, 또는 chemistry 토큰으로 둘러싼 ` S `)
+  → `\rightarrow`
+- **양방향 placeholder** (`±±`, `«±`, `«»`, `⇌`, 또는 chemistry 토큰으로 둘러싼 ` ^ `)
+  → `\rightleftharpoons`
+
+매칭된 수식은 해당 PDF 라벨의 arrow_type 을 그대로 반영한다. 매칭되지 않은 수식은
+PDF 측 증거가 없으므로 `\rightarrow` 를 안전한 기본값으로 사용한다 (가역 반응은
+필요 시 수동으로 `\rightleftharpoons` 로 교정).
 
 **단일 파일:**
 ```bash

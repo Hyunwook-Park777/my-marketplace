@@ -61,6 +61,7 @@ class PdfEquationLabel:
     body_text: str           # raw text of the equation body (up to ~300 chars before number, math-ish lines only)
     body_signature: str      # canonicalised signature of the body for matching
     has_arrow: bool          # True if a unicode arrow char appears just before
+    arrow_type: str          # "uni", "bi", or "unknown" — derived from PDF glyph placeholder
 
 
 @dataclass
@@ -81,6 +82,59 @@ class MdDisplayEquation:
 ARROW_CHARS = "→⇌↔⇋←⇐⇒↦↣↠↪↩"
 
 EQ_NUMBER_RE = re.compile(r"\((\d+\.\d+\.\d+[a-z]?)\)")
+
+# PyMuPDF's text extractor loses the original arrow codepoint in PDFs that
+# encode arrows as custom glyphs via a math/symbol font. The glyph then comes
+# out as a nearby ASCII/Latin-1 placeholder. These tables catalogue the
+# placeholders we have actually observed on real electrochemistry texts:
+#
+#   BIDIR_GLYPHS   → the original was `⇌` / `⇋` / `↔`
+#   UNIDIR_GLYPHS  → the original was `→`
+#
+# Priority is "longer placeholder first" so we don't let a single `±` prefix
+# of `±±` misfire. Unicode arrows (when they do survive) are matched too.
+BIDIR_GLYPHS = (
+    "⇌", "⇋", "⇄", "↔",          # ⇌ ⇋ ⇄ ↔
+    "<->", "<-->", "<=>",
+    "±±", "«±", "«»", "«±»", "<=±",
+)
+UNIDIR_GLYPHS = (
+    "→", "↦", "⭢", "⟶", "⟼", # → ↦ ⭢ ⟶ ⟼
+    "->", "-->", "—>", "-*", "--*", "=>",
+)
+
+_BIDIR_ISO_GLYPH_RE = re.compile(
+    # Isolated bidirectional hint between chemistry-like tokens:
+    # e.g. `2e ^ 2Br`, `CdCl ^ Cd`. `^` flanked by spaces + chem tokens.
+    r"(?<=[A-Za-z0-9\-\+])\s+\^\s+(?=[A-Za-z0-9])"
+)
+_UNIDIR_ISO_GLYPH_RE = re.compile(
+    # Isolated unidirectional hint: a capital S that stands alone between
+    # chemistry tokens on both sides, typically ` 2e S Cd(Hg) `. Require
+    # ASCII-letter boundaries so we don't match words.
+    r"(?<=[a-z0-9])\s+S\s+(?=[0-9A-Z])"
+)
+
+
+def _detect_arrow_type(text: str) -> str:
+    """Classify the arrow type embedded in a PDF text window as one of
+    ``"bi"``, ``"uni"`` or ``"unknown"``.
+
+    Checks multi-char placeholders first (unambiguous) and only falls back
+    to single-char heuristics (``^`` for ⇌, isolated ``S`` for →) when
+    flanked by chemistry-looking tokens.
+    """
+    for glyph in BIDIR_GLYPHS:
+        if glyph in text:
+            return "bi"
+    for glyph in UNIDIR_GLYPHS:
+        if glyph in text:
+            return "uni"
+    if _BIDIR_ISO_GLYPH_RE.search(text):
+        return "bi"
+    if _UNIDIR_ISO_GLYPH_RE.search(text):
+        return "uni"
+    return "unknown"
 
 
 def extract_pdf_equation_labels(pdf_path: Path) -> List[PdfEquationLabel]:
@@ -115,19 +169,26 @@ def extract_pdf_equation_labels(pdf_path: Path) -> List[PdfEquationLabel]:
 
             for match in EQ_NUMBER_RE.finditer(full_text):
                 before = full_text[max(0, match.start() - 400): match.start()]
+                after = full_text[match.end(): match.end() + 120]
                 preceding = _normalize_whitespace(before)
                 body_text = _extract_pdf_body_from_blocks(
                     match.start(), block_spans, before
                 )
                 body_sig = _canonicalize_body(body_text)
+                # Scan both the body and a wider window (before + small after,
+                # to handle cases where MinerU put the equation on the line
+                # following the label -- e.g. Hg2Br2+2e«±2Hg for (1.1.10))
+                arrow_type = _detect_arrow_type(body_text + " " + before[-200:] + " " + after)
                 has_arrow = any(ch in body_text for ch in ARROW_CHARS) or \
-                            any(ch in before[-80:] for ch in ARROW_CHARS)
+                            any(ch in before[-80:] for ch in ARROW_CHARS) or \
+                            arrow_type != "unknown"
                 labels.append(PdfEquationLabel(
                     number=match.group(1),
                     preceding_text=preceding,
                     body_text=body_text,
                     body_signature=body_sig,
                     has_arrow=has_arrow,
+                    arrow_type=arrow_type,
                 ))
     finally:
         doc.close()
@@ -354,14 +415,18 @@ def apply_tags(
     Applies replacements from last to first so earlier offsets remain
     valid. Returns the new text and a statistics dict suitable for a report.
     """
-    # Figure out which equations we're going to tag, keyed by index
+    # Figure out which equations we're going to tag, keyed by index. Also
+    # remember the PDF-derived arrow type for each so that the restoration
+    # pass below can use `\rightleftharpoons` vs `\rightarrow` correctly.
     tag_by_idx: dict = {}
+    arrow_type_by_idx: dict = {}
     for label, eq, _score in matches:
         if eq is None:
             continue
         if eq.index in tag_by_idx:
             continue
         tag_by_idx[eq.index] = label.number
+        arrow_type_by_idx[eq.index] = getattr(label, "arrow_type", "unknown")
 
     # Collect edits for every display equation that either gets a tag or an
     # arrow restoration (or both).
@@ -377,7 +442,10 @@ def apply_tags(
         new_body = body
         ops = 0
         if restore_arrows and not eq.has_arrow_cmd:
-            new_body, ops = _restore_arrow(new_body)
+            # Use the PDF-derived direction for matched equations; fall back
+            # to `uni` for unmatched ones (no evidence either way).
+            arrow_type = arrow_type_by_idx.get(eq.index, "unknown")
+            new_body, ops = _restore_arrow(new_body, arrow_type=arrow_type)
             if ops > 0:
                 arrow_fixes += 1
                 arrow_ops += ops
@@ -422,35 +490,38 @@ STACKREL_EMPTY_TOP_RE = re.compile(
 LATEX_SPACING = (r"\qquad", r"\quad", r"\,", r"\;", r"\:", r"\!", r"\ ", r"~")
 
 
-def _restore_arrow(math_body: str) -> Tuple[str, int]:
+def _restore_arrow(math_body: str, arrow_type: str = "uni") -> Tuple[str, int]:
     """Restore missing reaction arrows MinerU dropped.
 
-    Three independent rewrites fire; they are all safe to apply together:
+    The arrow direction is controlled by ``arrow_type``:
+      * ``"uni"``    → inject `\\rightarrow`
+      * ``"bi"``     → inject `\\rightleftharpoons`
+      * ``"unknown"``→ inject `\\rightarrow` (safe default; the
+                       unidirectional glyph is the more common of the two)
 
-    1. `\\stackrel{X}{ }` → `\\xrightarrow{X}`
-       MinerU knew an arrow with an over-label was present but couldn't
-       identify the character itself. Balanced-brace aware so nested
-       `\\mathrm{Hg}` etc. inside X is handled.
+    Three independent rewrites fire; they are safe to apply together:
 
-    2. `\\stackrel{ }{X}` → `\\xrightarrow[X]{}`
-       Same idea but with the label below the arrow.
+    1. `\\stackrel{X}{ }` → `\\xrightarrow{X}`  (over-label)
+    2. `\\stackrel{ }{X}` → `\\xrightarrow[X]{}`  (under-label)
+    3. Any run of 2+ ASCII spaces between two math tokens → arrow
 
-    3. Any run of 2+ ASCII spaces between two math tokens → `\\rightarrow`
-       This is the most common pattern: MinerU replaces an arrow glyph
-       (`→` / `⇌` / `↔` ...) it can't identify with blank space. We avoid
-       false positives by skipping gaps adjacent to explicit LaTeX spacing
-       macros (`\\quad`, `\\,`, etc.) and gaps at the very start/end of
-       the body.
+    Gaps adjacent to explicit LaTeX spacing macros (`\\quad`, `\\,`, …)
+    are skipped to keep false positives low. Gaps touching the very
+    start or end of the body are skipped too.
 
-    We do NOT try to distinguish `→` from `⇌`: the PDF's original arrow
-    character is lost by PyMuPDF's text extractor, so we pick the most
-    common variant (`\\rightarrow`) and leave finer disambiguation to
-    the human reviewer.
+    Stacked-arrow variants (1 and 2) always use `\\xrightarrow` because
+    the over/under label implies a directed arrow; for those variants
+    ``arrow_type`` does not apply.
 
     Returns the new body and the number of rewrites performed.
     """
     ops = 0
     new_body = math_body
+
+    if arrow_type == "bi":
+        plain_arrow = r"\rightleftharpoons"
+    else:
+        plain_arrow = r"\rightarrow"
 
     # 1) \stackrel{X}{ } -> \xrightarrow{X}
     new_body, n1 = STACKREL_EMPTY_RE.subn(r"\\xrightarrow{\1}", new_body)
@@ -460,24 +531,21 @@ def _restore_arrow(math_body: str) -> Tuple[str, int]:
     new_body, n2 = STACKREL_EMPTY_TOP_RE.subn(r"\\xrightarrow[\1]{}", new_body)
     ops += n2
 
-    # 3) 2-space gaps -> \rightarrow. Replace from right to left to keep
+    # 3) 2-space gaps -> plain arrow. Replace from right to left to keep
     # earlier match offsets valid.
     gaps = list(DOUBLE_SPACE_RE.finditer(new_body))
     for g in reversed(gaps):
         gap_start = g.start(2)
         gap_end = g.end(2)
-        # Safety: don't rewrite gaps that are next to LaTeX explicit-spacing
-        # macros -- those are deliberate spacing, not a dropped arrow.
         left_ctx = new_body[max(0, gap_start - 8):gap_start]
         right_ctx = new_body[gap_end:gap_end + 8]
         if any(left_ctx.endswith(sp) for sp in LATEX_SPACING):
             continue
         if any(right_ctx.lstrip().startswith(sp) for sp in LATEX_SPACING):
             continue
-        # Safety: gap must be in the "middle" of the equation body
         if gap_start < 2 or gap_end > len(new_body) - 2:
             continue
-        new_body = new_body[:gap_start] + r" \rightarrow " + new_body[gap_end:]
+        new_body = new_body[:gap_start] + " " + plain_arrow + " " + new_body[gap_end:]
         ops += 1
 
     return new_body, ops
