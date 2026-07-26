@@ -1,0 +1,37 @@
+{
+  "template_docx": "연구노트 양식.docx",
+  "output_docx": "연구노트_통합.docx",
+  "period": {
+    "start": "2022-05",
+    "end": "2025-12",
+    "holidays_country": "KR"
+  },
+  "roster": [
+    { "name": "강건용", "start": "2022-05", "end": "2025-12", "source": "vienna" },
+    { "name": "오승묵", "start": "2022-05", "end": "2023-12", "source": "pptx_intro" },
+    { "name": "이용규", "start": "2024-01", "end": "2025-12", "source": "pptx_intro" },
+    { "name": "김창업", "start": "2022-05", "end": "2025-12", "source": "pptx_combustion" },
+    { "name": "박현욱", "start": "2022-05", "end": "2025-12", "source": "report" },
+    { "name": "이준순", "start": "2023-01", "end": "2025-12", "source": "report_emissions" }
+  ],
+  "confirmers": [
+    { "start": "2022-05", "end": "2023-12", "name": "이용규" },
+    { "start": "2024-01", "end": "2025-12", "name": "오승묵" }
+  ],
+  "schedule": {
+    "confirm_gap_days": [5, 10],
+    "max_writers_per_week": 2
+  },
+  "formatting": {
+    "font": "Gulim",
+    "size_pt": 11,
+    "figure_max_cm": [12.0, 6.5],
+    "blank_before_title": true,
+    "blank_after_title": true,
+    "blank_before_figure": true,
+    "center_footer": true,
+    "space_names": true,
+    "fill_to_page": true,
+    "no_figure_writers": ["오승묵"]
+  }
+}
