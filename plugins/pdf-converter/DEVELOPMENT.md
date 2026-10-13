@@ -228,3 +228,24 @@ MD 파일에서 추출:
 4. **대용량 테스트**: 100+ 페이지 PDF로 타임아웃 없이 완료되는지 확인
 5. **검증 점수 확인**: `verification_report.json`의 `overall_score`가 합리적인지 확인
 6. **플러그인 로딩 확인**: Claude Code 재시작 후 스킬/에이전트 정상 로드 확인
+
+---
+
+## 변경 이력
+
+### v2.0.0 (2026-10-13) — MinerU 2.x / 4.x 이중 엔진
+
+- `mineru_converter.py --engine auto|mineru2|mineru4` (기본 auto). PDF 텍스트 층을 최대 15쪽 샘플링해 한글 비율이 높으면 MinerU 2.x + `korean` OCR, 그 외는 MinerU 4.x `--tier advanced`.
+- `mineru4_converter.py` 신규: 별도 venv(`--mineru4-python` → `$MINERU4_PYTHON` → `~/venvs/mineru4`)의 `python -m mineru.kit.main parse --format zip` 실행, zip → `{stem}.md` + `{stem}/images/` 정리. 4.x 기본 markdown 형식은 이미지를 base64 로 내장해 32개 문서가 89MB 가 되므로 쓰지 않는다.
+- 한국어를 2.x 로 보내는 이유: 4.0.12 실측에서 이미지/스캔 영역 한글이 빠지거나 한자로 읽힘 (3.4 에서 OCR 이 `ch` 모델로 통합된 영향으로 추정). 영어 논문은 4.x advanced 가 단어 보존·화학식·% 표기·속도 모두 우수.
+- 후처리: 4.x 이미지 분석 `<details>` 블록에 "MinerU 이미지 분석 (추정값)" 표시. 검증: 해당 블록의 그래프 추정 표는 표 개수에서 제외.
+- `verify_figures.py` repair 에 `--engine/--tier/--mineru4-python` 전달.
+
+### v1.3.0 (2026-10-13) — 내용 손실·표/이미지 깨짐 수정, GPU 전용
+
+- `-l ko` 등 ISO 언어 코드를 MinerU 이름(korean/japan/ch)으로 변환 (MinerU 가 거부해 한국어 변환이 전부 실패하던 문제).
+- MinerU 결과 폴더(auto/txt/ocr/vlm/hybrid_auto) 탐색 (`-m ocr`·vlm·hybrid 결과를 못 찾던 문제).
+- 표 구분선 정규식이 줄바꿈까지 매칭해 모든 표가 깨지던 문제 수정 (볼트 33개 파일, 136개 표).
+- 경로가 260자를 넘으면 이미지를 `img_NNN` 으로 저장 (이미지가 조용히 사라지던 문제, 볼트 5개 파일 69개).
+- DOI/URL 포함 줄·수식 안 숫자 삭제, 줄을 넘는 `$$` 짝짓기로 수식/본문이 뒤바뀌던 문제 수정. 병합 셀 표는 HTML 유지.
+- GPU 전용(CUDA 없으면 exit 3, `--allow-cpu` 예외). UTF-8 출력 강제(cp949 콘솔 크래시). MinerU 가 종료 코드 0 으로 실패할 때 오류 줄을 리포트에 기록.

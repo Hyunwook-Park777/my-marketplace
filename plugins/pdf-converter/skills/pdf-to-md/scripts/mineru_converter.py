@@ -10,7 +10,8 @@ Usage:
     python mineru_converter.py --single ./document.pdf --output-dir ./converted/
 
 Requirements:
-    pip install "mineru[all]"
+    pip install "mineru[all]<3"          (MinerU 2.x, base Python)
+    MinerU 4.x: separate venv, see SKILL.md (optional; used by --engine auto/mineru4)
     pip install pymupdf  (optional, for accurate page count)
 """
 
@@ -697,7 +698,33 @@ def _build_report(
     return report
 
 
+def detect_pdf_language(pdf_path: Path) -> Optional[str]:
+    """PDF 텍스트 층으로 언어 추정: 한글 비율이 높으면 'korean', 라틴 문자면 'en', 텍스트가 없으면(스캔) None"""
+    try:
+        try:
+            import pymupdf as _fitz
+        except ImportError:
+            import fitz as _fitz  # type: ignore
+        doc = _fitz.open(str(pdf_path))
+        # 앞쪽은 표지/이미지 페이지인 경우가 많아 문서 전체에서 고르게 최대 15쪽을 본다
+        n = len(doc)
+        idx = sorted({int(i * n / 15) for i in range(15)}) if n > 15 else range(n)
+        pages = [doc[i] for i in idx]
+        text = "".join(p.get_text() for p in pages)
+        doc.close()
+    except Exception:
+        return None
+    hangul = len(re.findall(r"[\uac00-\ud7a3]", text))
+    latin = len(re.findall(r"[A-Za-z]", text))
+    if hangul + latin < 50 * max(1, len(pages)):
+        return None
+    return "korean" if hangul > latin * 0.2 else "en"
+
+
 def main():
+    from mineru4_converter import (
+        DEFAULT_TIER, MINERU4_TIERS, convert_with_mineru4, find_mineru4_python, probe_mineru4,
+    )
     # Windows 파이프 기본 인코딩(cp949)에서는 일부 문자 출력 시 UnicodeEncodeError 로 종료된다
     for _stream in (sys.stdout, sys.stderr):
         try:
@@ -728,8 +755,9 @@ def main():
     parser.add_argument(
         "--language", "-l",
         type=str,
-        default="en",
-        help="OCR language: en, korean, japan, ch, ... (ISO codes ko/ja/zh are mapped; default: en)"
+        default=None,
+        help="MinerU 2.x OCR language: en, korean, japan, ch, ... (ISO codes ko/ja/zh are mapped). "
+             "Default: detected per PDF (Hangul text -> korean, else en)"
     )
     parser.add_argument(
         "--backend", "-b",
@@ -763,63 +791,137 @@ def main():
         action="store_true",
         help="Fall back to CPU when CUDA is unavailable (default: stop with an error, GPU only)"
     )
+    parser.add_argument(
+        "--engine",
+        choices=["auto", "mineru2", "mineru4"],
+        default="auto",
+        help="auto: Korean/scanned-Korean PDFs -> MinerU 2.x (korean OCR), others -> MinerU 4.x; "
+             "falls back to mineru2 when no MinerU 4 venv is found (default: auto)"
+    )
+    parser.add_argument(
+        "--tier",
+        choices=MINERU4_TIERS,
+        default=DEFAULT_TIER,
+        help="MinerU 4.x quality tier (default: advanced)"
+    )
+    parser.add_argument(
+        "--pages",
+        default=None,
+        help="MinerU 4.x page selection, e.g. '1-5,8' or 'r3-r1' (default: all pages)"
+    )
+    parser.add_argument(
+        "--mineru4-python",
+        default=None,
+        help="python.exe of the MinerU 4.x venv (default: $MINERU4_PYTHON, then ~/venvs/mineru4)"
+    )
 
     args = parser.parse_args()
 
     if not args.input_dir and not args.single:
         parser.error("Either --input-dir or --single is required")
 
-    # GPU 전용 정책: CPU 변환은 수백 페이지 문서에서 수십 배 느리므로 조용히 폴백하지 않는다
-    if args.device is None:
-        args.device = detect_cuda_device()
-        if args.device is None:
-            if not args.allow_cpu:
-                print("Error: CUDA GPU not available (torch.cuda.is_available() is False).", file=sys.stderr)
-                print("Install CUDA PyTorch, or pass --allow-cpu / --device cpu to run on CPU.", file=sys.stderr)
-                sys.exit(3)
-            args.device = "cpu"
-
-    language = normalize_language(args.language)
-    if language != args.language:
-        print(f"Language '{args.language}' -> MinerU '{language}'", file=sys.stderr)
-        args.language = language
-
-    if not check_mineru_installation():
-        print("Error: MinerU is not installed or cannot be launched.")
-        print('Install: pip install "mineru[all]"')
-        print("This script always invokes MinerU via 'python -m mineru.cli.client' to avoid "
-              "Device Guard / Application Control blocks on mineru.exe.")
-        sys.exit(1)
-
     if args.single:
         if not args.single.exists():
             print(f"Error: PDF file not found: {args.single}")
             sys.exit(1)
-        result = convert_single_pdf(
-            args.single, args.output_dir, args.language,
-            args.backend, args.method, args.timeout, args.device
-        )
-        print(json.dumps(result, indent=2, ensure_ascii=False))
-        sys.exit(0 if result["status"] == "success" else 1)
+        pdfs = [args.single]
     else:
         if not args.input_dir.exists():
             print(f"Error: Input directory not found: {args.input_dir}")
             sys.exit(1)
-        report = batch_convert(
-            input_dir=args.input_dir,
-            output_dir=args.output_dir,
-            language=args.language,
-            backend=args.backend,
-            method=args.method,
-            timeout=args.timeout,
-            device=args.device
-        )
-        if report.get("error"):
+        pdfs = sorted(args.input_dir.glob("*.pdf"))
+        if not pdfs:
+            print(f"Error: No PDF files found in {args.input_dir}")
             sys.exit(1)
-        elif report["summary"]["failed"] > 0:
-            sys.exit(2)
+
+    # MinerU 4.x 사용 가능 여부 (auto 는 없으면 2.x 로 대체)
+    m4_python = None
+    if args.engine in ("auto", "mineru4"):
+        m4_python = find_mineru4_python(args.mineru4_python)
+        info = probe_mineru4(m4_python) if m4_python else {"ok": False, "error": "MinerU 4 venv not found"}
+        problem = None
+        if not info.get("ok"):
+            problem = f"MinerU 4.x unavailable ({info.get('error') or info.get('version')})"
+        elif not info.get("cuda") and not args.allow_cpu:
+            problem = "MinerU 4.x venv has no CUDA PyTorch (GPU only; pass --allow-cpu to override)"
+        if problem:
+            if args.engine == "mineru4":
+                print(f"Error: {problem}", file=sys.stderr)
+                sys.exit(3 if "CUDA" in problem else 1)
+            print(f"Warning: {problem} -> using MinerU 2.x for all files", file=sys.stderr)
+            m4_python = None
+
+    # 파일별 엔진/언어 결정
+    user_lang = normalize_language(args.language) if args.language else None
+    plan = {}
+    for pdf in pdfs:
+        lang = user_lang or detect_pdf_language(pdf) or "en"
+        if args.engine == "mineru2" or m4_python is None:
+            engine = "mineru2"
+        elif args.engine == "mineru4":
+            engine = "mineru4"
         else:
-            sys.exit(0)
+            # MinerU 4.x 는 이미지/스캔 영역 한글 OCR 이 불안정해 한국어는 2.x korean OCR 로 보낸다
+            engine = "mineru2" if lang == "korean" else "mineru4"
+        plan[pdf] = (engine, lang)
+        print(f"  plan: {pdf.name} -> {engine} ({lang})", file=sys.stderr)
+
+    results = []
+    m2_files = [p for p in pdfs if plan[p][0] == "mineru2"]
+    if m2_files:
+        # GPU 전용 정책: CPU 변환은 수백 페이지 문서에서 수십 배 느리므로 조용히 폴백하지 않는다
+        if args.device is None:
+            args.device = detect_cuda_device()
+            if args.device is None:
+                if not args.allow_cpu:
+                    print("Error: CUDA GPU not available (torch.cuda.is_available() is False).", file=sys.stderr)
+                    print("Install CUDA PyTorch, or pass --allow-cpu / --device cpu to run on CPU.", file=sys.stderr)
+                    sys.exit(3)
+                args.device = "cpu"
+        if not check_mineru_installation():
+            print("Error: MinerU 2.x is not installed or cannot be launched.", file=sys.stderr)
+            print('Install: pip install "mineru[all]<3"', file=sys.stderr)
+            print("This script invokes MinerU 2.x via 'python -m mineru.cli.client' to avoid "
+                  "Device Guard / Application Control blocks on mineru.exe.", file=sys.stderr)
+            sys.exit(1)
+        for lang in sorted({plan[p][1] for p in m2_files}):
+            group = [p for p in m2_files if plan[p][1] == lang]
+            if args.single:
+                group_results = [convert_single_pdf(
+                    args.single, args.output_dir, lang, args.backend, args.method, args.timeout, args.device)]
+            elif len(group) == len(pdfs):
+                group_results = batch_convert(args.input_dir, args.output_dir, lang, args.backend,
+                                              args.method, args.timeout, args.device).get("files", [])
+            else:
+                # 폴더 일부만 이 엔진/언어로 갈 때도 모델을 한 번만 로드하도록 임시 폴더에 모아 배치 변환
+                group_dir = _get_short_temp_dir()
+                try:
+                    for p in group:
+                        shutil.copy2(str(p), str(group_dir / p.name))
+                    group_results = batch_convert(group_dir, args.output_dir, lang, args.backend,
+                                                  args.method, args.timeout, args.device).get("files", [])
+                finally:
+                    shutil.rmtree(str(group_dir), ignore_errors=True)
+                originals = {p.name: str(p) for p in group}
+                for r in group_results:
+                    r["input"] = originals.get(Path(r["input"]).name, r["input"])
+            for r in group_results:
+                r.setdefault("engine", f"mineru2:{args.backend}:{lang}")
+            results += group_results
+
+    m4_files = [p for p in pdfs if plan[p][0] == "mineru4"]
+    if m4_files:
+        results += convert_with_mineru4(m4_files, args.output_dir, m4_python, args.tier,
+                                        args.method, args.pages, args.timeout)
+
+    if args.single:
+        print(json.dumps(results[0], indent=2, ensure_ascii=False))
+        sys.exit(0 if results[0]["status"] == "success" else 1)
+
+    success = sum(1 for r in results if r.get("status") == "success")
+    _build_report(results, pdfs, success, len(pdfs) - success, args.output_dir,
+                           args.backend, user_lang or "auto", args.method)
+    sys.exit(0 if success == len(pdfs) else 2)
 
 
 if __name__ == "__main__":

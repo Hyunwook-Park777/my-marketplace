@@ -139,9 +139,11 @@ def extract_md_metadata(md_path: Path) -> dict:
                 image_files_found += 1
 
     # MD 표 카운트 (구분선 |---|---| 패턴)
-    table_separators = re.findall(r'^\|[ \t\-:|]+\|$', content, re.MULTILINE)
+    # MinerU 4.x 이미지 분석 블록(<details>)의 그래프 추정 표는 원문 표가 아니므로 제외
+    body = re.sub(r'<details\b.*?</details>', '', content, flags=re.DOTALL | re.IGNORECASE)
+    table_separators = re.findall(r'^\|[ \t\-:|]+\|$', body, re.MULTILINE)
     # 병합 셀 표는 후처리에서 HTML 로 유지되므로 함께 센다
-    html_tables = re.findall(r'<table\b', content, re.IGNORECASE)
+    html_tables = re.findall(r'<table\b', body, re.IGNORECASE)
     table_count = len(table_separators) + len(html_tables)
 
     # 수식 카운트

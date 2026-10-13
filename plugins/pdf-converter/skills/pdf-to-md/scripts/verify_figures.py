@@ -36,6 +36,18 @@ from pathlib import Path
 UTF8_ENV = {**os.environ, "PYTHONIOENCODING": "utf-8"}
 
 
+def _converter_error(proc) -> str:
+    """mineru_converter.py --single 실패 사유: stdout JSON 의 error, 없으면 stderr 의 마지막 줄들"""
+    try:
+        err = json.loads(proc.stdout[proc.stdout.index("{"):]).get("error")
+        if err:
+            return str(err)[:500]
+    except (ValueError, AttributeError):
+        pass
+    lines = [l for l in (proc.stderr or "").splitlines() if l.strip() and not l.strip().startswith("plan:")]
+    return "\n".join(lines[-5:])[:500]
+
+
 def count_image_refs(content: str) -> int:
     """MD 콘텐츠에서 이미지 참조 수를 카운트"""
     return len(re.findall(r'!\[', content))
@@ -196,7 +208,7 @@ def repair_missing_figures(
                 result = {
                     "file": md_name,
                     "status": "convert_failed",
-                    "error": proc.stderr[:500]
+                    "error": _converter_error(proc)
                 }
                 print(f"  -> FAILED: conversion error")
                 repair_results.append(result)
@@ -315,6 +327,12 @@ def main():
                         help="Repair: parse method (auto/txt/ocr) passed to mineru_converter.py")
     parser.add_argument("--device", "-d", default=None,
                         help="Repair: inference device passed to mineru_converter.py")
+    parser.add_argument("--engine", default=None, choices=["auto", "mineru2", "mineru4"],
+                        help="Repair: engine passed to mineru_converter.py (default: its auto)")
+    parser.add_argument("--tier", default=None,
+                        help="Repair: MinerU 4.x tier passed to mineru_converter.py")
+    parser.add_argument("--mineru4-python", default=None,
+                        help="Repair: MinerU 4.x venv python passed to mineru_converter.py")
     parser.add_argument("--no-equation-fix", action="store_true",
                         help="Repair: skip equation_fixer.py on re-converted files")
 
@@ -352,7 +370,9 @@ def main():
         script_dir = Path(__file__).parent
         converter_args = []
         for flag, value in (("-l", args.language), ("-b", args.backend),
-                            ("-m", args.method), ("-d", args.device)):
+                            ("-m", args.method), ("-d", args.device),
+                            ("--engine", args.engine), ("--tier", args.tier),
+                            ("--mineru4-python", args.mineru4_python)):
             if value:
                 converter_args += [flag, value]
         repair_result = repair_missing_figures(

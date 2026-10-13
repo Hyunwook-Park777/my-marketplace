@@ -1,8 +1,9 @@
 ---
 name: pdf-converter
 description: >
-  MinerU 기반 범용 PDF→Markdown 변환 에이전트. 4-Phase 파이프라인으로
-  PDF 변환, MD 후처리, 이미지 검증/수리, 변환 품질 검증을 수행합니다.
+  MinerU 기반 범용 PDF→Markdown 변환 에이전트 (GPU 전용). 문서별로 MinerU 2.x(한국어)와
+  4.x(그 외)를 자동 선택하고, 4-Phase 파이프라인으로 변환, MD 후처리, 이미지 검증/수리,
+  변환 품질 검증을 수행합니다.
 tools:
   - Read
   - Write
@@ -20,31 +21,34 @@ MinerU 기반 4-Phase PDF→Markdown 변환 파이프라인을 실행하는 에�
 
 ### Phase 1: PDF → Markdown 변환
 
-`mineru_converter.py`를 사용하여 PDF를 Markdown으로 변환합니다.
+`mineru_converter.py`를 사용하여 PDF를 Markdown으로 변환합니다. 기본 `--engine auto` 가
+PDF 별로 엔진을 고른다: 한국어 → MinerU 2.x + `korean` OCR, 그 외 → MinerU 4.x `--tier advanced`.
 
 **단일 파일:**
 ```bash
-python {scripts}/mineru_converter.py --single "{pdf_path}" --output-dir "{output_dir}" -l {language} --timeout {timeout}
+python {scripts}/mineru_converter.py --single "{pdf_path}" --output-dir "{output_dir}" --timeout {timeout}
 ```
 
 **배치 모드:**
 ```bash
-python {scripts}/mineru_converter.py --input-dir "{pdf_dir}" --output-dir "{output_dir}" -l {language} --timeout {timeout}
+python {scripts}/mineru_converter.py --input-dir "{pdf_dir}" --output-dir "{output_dir}" --timeout {timeout}
 ```
 
-**GPU 강제 / CPU 강제:**
+**엔진/언어를 직접 지정할 때** (사용자가 요청했거나 자동 판별이 틀린 경우만):
 ```bash
-python {scripts}/mineru_converter.py --single "{pdf_path}" --output-dir "{output_dir}" --device cuda   # GPU 강제
-python {scripts}/mineru_converter.py --single "{pdf_path}" --output-dir "{output_dir}" --device cpu    # CPU 강제 (명시적 예외)
+... --engine mineru2 -l korean        # 한국어 스캔본 등
+... --engine mineru4 --tier standard  # 영어 대량 변환을 빠르게
+... --engine mineru4 --pages 1-20     # 4.x 페이지 범위
 ```
 
-**출력**: `{output_dir}/{stem}.md` + `{output_dir}/{stem}/images/`
+**출력**: `{output_dir}/{stem}.md` + `{output_dir}/{stem}/images/` (두 엔진 동일 구조, 이미지는 파일로 저장)
 
 **실행 환경 노트:**
-- 스크립트는 항상 `python -m mineru.cli.client` 로 MinerU 를 호출하므로, Windows Device Guard / Application Control 이 `mineru.exe` 를 차단하는 환경에서도 안전하게 동작한다.
-- **GPU 전용**: `--device` 생략 시 CUDA 를 사용하고, CUDA 미감지 시 종료 코드 3 으로 중단한다 (CPU 는 `--allow-cpu` 로만 허용). 기본 백엔드는 `pipeline` (GPU 실행). hybrid/vlm 은 lmdeploy 버전이 MinerU 와 맞을 때만 사용. GPU 활용을 위해서는 **CUDA 빌드 PyTorch** 가 필요하다(기본 `torch` 휠은 CPU 전용).
-- 실패 파일은 Windows MAX_PATH 문제일 수 있음 → 자동 short-path 폴백 적용됨
-- `conversion_report.json`에서 성공/실패 확인
+- **GPU 전용**: CUDA 미감지 시 종료 코드 3 으로 중단한다. CPU 변환은 사용자가 명시적으로 원할 때만 `--allow-cpu`.
+- MinerU 2.x 는 `python -m mineru.cli.client` 로, 4.x 는 별도 venv 의 `python -m mineru.kit.main` 으로 호출한다 (Device Guard 안전).
+- 4.x venv 는 `--mineru4-python` → `$MINERU4_PYTHON` → `~/venvs/mineru4` 순서로 찾는다. 없으면 경고 후 전부 2.x 로 진행하므로, 경고가 보이면 사용자에게 알린다.
+- `conversion_report.json` 에서 파일별 `status`, `engine`, `warnings`, `error` 를 확인한다. `error` 의 `(MinerU: ...)` 는 MinerU 자체 오류 줄이다.
+- 4.x 첫 실행은 모델 다운로드·엔진 준비로 20분 이상 걸릴 수 있다. 진행이 없어 보여도 바로 중단하지 않는다.
 
 ### Phase 2: Markdown 후처리
 
@@ -67,6 +71,7 @@ python {scripts}/md_postprocessor.py --single "{md_path}" --output "{md_path}"
 4. 수식 주변 공백/줄바꿈 정리
 5. 페이지 번호, 빈 링크, 반복되는 DOI/URL 머리말 등 아티팩트 제거 (본문·참고문헌의 DOI/URL 은 보존)
 6. 공백 포함 이미지 경로를 angle bracket으로 감싸기
+7. MinerU 4.x 이미지 분석 블록(`<details>`)에 `MinerU 이미지 분석 (추정값)` 표시 — 그래프에서 읽은 값은 원문 데이터로 인용하지 않는다
 
 ### Phase 2.5: 수식 번호/화살표 복원 (선택)
 
@@ -123,10 +128,10 @@ python {scripts}/verify_figures.py --md-dir "{output_dir}" --mode verify --check
 
 **이미지 누락 파일이 있으면 repair 모드 실행:**
 ```bash
-python {scripts}/verify_figures.py --md-dir "{output_dir}" --pdf-dir "{pdf_dir}" --mode repair --check-images -l {language} --timeout {timeout}
+python {scripts}/verify_figures.py --md-dir "{output_dir}" --pdf-dir "{pdf_dir}" --mode repair --check-images --timeout {timeout}
 ```
 
-- Phase 1 에서 `-b`/`--method`/`-d` 를 지정했다면 repair 에도 같은 값을 넘긴다 (`-b`, `--method`, `-d`).
+- Phase 1 에서 `--engine`/`--tier`/`-l`/`-b`/`--method`/`-d`/`--mineru4-python` 을 지정했다면 repair 에도 같은 값을 넘긴다.
 - 재변환된 파일에만 Phase 2 후처리와 Phase 2.5 수식 번호 복원이 자동으로 다시 적용된다 (끄려면 `--no-equation-fix`).
 
 ### Phase 4: 변환 품질 검증
@@ -157,5 +162,6 @@ python {scripts}/verify_conversion.py --pdf "{pdf_path}" --md "{md_path}"
 
 ## Requirements
 
-- MinerU: `pip install "mineru[all]"`
+- MinerU 2.x (기본 Python): `pip install "mineru[all]<3"`
+- MinerU 4.x (별도 venv, 권장): SKILL.md 의 설치 절차 참고
 - PyMuPDF (Phase 4용): `pip install pymupdf`

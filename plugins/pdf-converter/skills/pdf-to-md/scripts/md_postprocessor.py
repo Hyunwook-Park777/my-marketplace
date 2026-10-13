@@ -258,6 +258,18 @@ def fix_image_paths_with_spaces(content: str) -> str:
     return re.sub(r'!\[([^\]]*)\]\(([^)]+)\)', _wrap_path, content)
 
 
+def label_image_analysis_blocks(content: str) -> str:
+    """MinerU 4.x 이미지 분석 블록(<details><summary>chart|scatter|seal...</summary>)에 추정값 표시
+
+    그래프에서 읽어낸 표(`~45` 같은 값)는 모델 추정치라 원문 데이터와 섞이면 안 된다.
+    """
+    return re.sub(
+        r'(<details>\s*<summary>)(?!MinerU)([^<]*)(</summary>)',
+        lambda m: f'{m.group(1)}MinerU 이미지 분석 (추정값): {m.group(2).strip()}{m.group(3)}',
+        content
+    )
+
+
 def add_section_markers(content: str) -> str:
     """섹션 시작/끝 마커 추가 (분석용)
 
@@ -297,6 +309,7 @@ def process_markdown(content: str, add_markers: bool = False) -> str:
     content = clean_tables(content)
     content = remove_artifacts(content)
     content = fix_image_paths_with_spaces(content)
+    content = label_image_analysis_blocks(content)
 
     if add_markers:
         content = add_section_markers(content)

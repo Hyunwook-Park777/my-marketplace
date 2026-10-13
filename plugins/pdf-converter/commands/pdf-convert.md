@@ -18,15 +18,17 @@ PDF 문서를 Markdown으로 변환하는 4-Phase 파이프라인 오케스트�
 |-----------|----------|---------|-------------|
 | `pdf_input` | Yes | - | PDF 폴더 또는 단일 파일 경로 |
 | `output_dir` | No | `{CWD}/md_output/` | 출력 디렉토리 |
-| `language` | No | `en` | OCR 언어 (en, korean, japan, ch 등. ko/ja/zh 는 자동 변환) |
+| `language` | No | PDF 별 자동 감지 | MinerU 2.x OCR 언어 (en, korean, japan, ch 등. ko/ja/zh 는 자동 변환) |
+| `engine` | No | `auto` | `auto` (한국어→MinerU 2.x, 그 외→4.x), `mineru2`, `mineru4` |
+| `tier` | No | `advanced` | MinerU 4.x 품질 티어 (flash/basic/standard/advanced) |
 | `verify` | No | `true` | 품질 검증 활성화 여부 |
 
 ## Execution Flow
 
 ### Step 0: 환경 확인
 
-1. MinerU 설치 확인: `python -m mineru.cli.client --version` (Device Guard 가 `mineru.exe` 를 막는 환경에서도 동작)
-2. CUDA GPU 확인: `python -c "import torch; print(torch.cuda.is_available())"` — False 면 CUDA PyTorch 설치를 안내하고 중단 (사용자가 CPU 를 명시한 경우만 `--allow-cpu`)
+1. MinerU 설치 확인: `python -m mineru.cli.client --version` (2.x, Device Guard 안전). 4.x venv 는 변환 스크립트가 자동 탐색하며, 없으면 경고 후 2.x 로 진행한다
+2. CUDA GPU 확인: 변환 스크립트가 엔진별로 검사한다 (2.x 는 기본 Python, 4.x 는 venv 의 torch). CUDA 가 없으면 종료 코드 3 → CUDA PyTorch 설치를 안내하고 중단 (사용자가 CPU 를 명시한 경우만 `--allow-cpu`). `engine`/`tier` 파라미터는 Phase 1 명령에 `--engine`/`--tier` 로 그대로 전달한다
 3. PyMuPDF 설치 확인 (검증용): `python -c "import pymupdf"`
 4. 입력 경로 존재 확인
 5. 출력 디렉토리 생성
@@ -128,7 +130,7 @@ PDF 의 placeholder 패턴을 분석해 **단방향 / 양방향을 자동 구분
 
 | Error | Action |
 |-------|--------|
-| MinerU 미설치 | `pip install "mineru[all]"` 안내 후 중단 |
+| MinerU 2.x 미설치 | `pip install "mineru[all]<3"` 안내 후 중단 (4.x 는 별도 venv, SKILL.md 참고) |
 | PyMuPDF 미설치 | 경고 후 Phase 4 스킵 (변환은 정상 진행) |
 | PDF 경로 없음 | 에러 메시지 출력 후 중단 |
 | 변환 타임아웃 | `--timeout` 증가 안내 |
