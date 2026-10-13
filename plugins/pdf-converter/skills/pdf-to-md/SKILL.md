@@ -23,7 +23,7 @@ MinerU 기반 범용 PDF→Markdown 변환 파이프라인.
 
 ## Script Resolution Protocol
 
-스크립트 경로를 찾을 때 다음 3단계 폴백을 사용:
+스크립트 경로를 찾을 때 다음 폴백 순서를 사용:
 1. **상대 경로**: `skills/pdf-to-md/scripts/{script_name}`
 2. **Glob 검색**: `**/scripts/{script_name}`
 3. **확장 Glob**: `**/{script_name}`
@@ -45,6 +45,8 @@ python scripts/mineru_converter.py --input-dir ./pdfs/ --output-dir ./converted/
 python scripts/md_postprocessor.py --input-dir ./converted/ --output-dir ./processed/
 python scripts/equation_fixer.py --pdf-dir ./pdfs/ --md-dir ./processed/ --report ./processed/equation_fix_report.json   # 선택
 python scripts/verify_figures.py --md-dir ./processed/ --mode verify --check-images
+# 이미지 누락 시: 최초 변환과 같은 옵션으로 재변환 (후처리·수식 복원 자동 재적용)
+python scripts/verify_figures.py --md-dir ./processed/ --pdf-dir ./pdfs/ --mode repair --check-images -l en --timeout 3600
 python scripts/verify_conversion.py --pdf-dir ./pdfs/ --md-dir ./processed/ --output report.json
 ```
 
@@ -61,13 +63,17 @@ python -m mineru.cli.client -p <input> -o <output> [-b backend] [-l language] [-
 | Option | Values | Default |
 |--------|--------|---------|
 | `-b` backend | `pipeline`, `vlm-auto-engine`, `hybrid-auto-engine` | `pipeline` |
-| `-l` language | `en`, `ko`, `ja`, `zh`, etc. | `en` |
+| `-l` language | `en`, `korean`, `japan`, `ch`, `chinese_cht`, `latin` 등 (MinerU 이름) | `en` |
 | `-m` method | `auto`, `txt`, `ocr` | `auto` |
-| `-d` device | `cpu`, `cuda`, `cuda:0`, `mps`, `npu` | auto-detect (cuda→cpu) |
+| `-d` device | `cpu`, `cuda`, `cuda:0`, `mps`, `npu` | `cuda` (미감지 시 오류, `--allow-cpu` 로 CPU 허용) |
+
+MinerU 는 `ko`/`ja`/`zh` 같은 ISO 코드를 거부한다. `mineru_converter.py` 는 이를 `korean`/`japan`/`ch` 로 자동 변환한다 (MinerU 를 직접 호출할 때는 MinerU 이름을 써야 함).
+MinerU 는 백엔드/메서드에 따라 `{stem}/auto|txt|ocr|vlm|hybrid_auto/` 에 결과를 쓰며, 변환기는 어느 폴더든 찾아 평탄화한다.
 
 ### 실행 환경 노트
 - `mineru_converter.py` 는 항상 `sys.executable -m mineru.cli.client` 형태로 MinerU 를 호출하므로 Windows Device Guard 가 `mineru.exe` 를 차단하는 환경에서도 안전하게 동작한다.
-- `--device` 옵션을 생략하면 PyTorch `torch.cuda.is_available()` 로 GPU 를 자동 감지하고, 감지 실패 시 CPU 로 폴백한다.
+- **GPU 전용**: `--device` 를 생략하면 CUDA 를 사용하고, `torch.cuda.is_available()` 가 False 면 종료 코드 3 으로 중단한다 (수백 페이지를 CPU 로 조용히 돌리지 않기 위함). CPU 가 필요하면 `--allow-cpu` 또는 `--device cpu` 를 명시한다.
+- 기본 백엔드는 `pipeline` (레이아웃/OCR/수식 모델을 `-d cuda` 로 GPU 실행). `hybrid-*`/`vlm-*` 는 Windows 에서 MinerU 2.7.x 기준 `lmdeploy>=0.10.2,<0.12` 가 필요하며, 버전이 맞지 않으면 MinerU 가 종료 코드 0 으로 결과 없이 끝난다. 이 경우 `conversion_report.json` 의 error 에 MinerU 오류 줄이 기록된다.
 - GPU 가속을 쓰려면 **CUDA 지원 PyTorch** 가 필요하다. 기본 `torch` 휠(CPU 전용)이 설치된 환경에서는 GPU 가 있어도 CPU 로 동작한다. 설치 예: `pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128` (CUDA 12.8).
 - `verify_conversion.py` 와 `mineru_converter.py` 는 PyMuPDF 를 `pymupdf → fitz` 순서로 임포트하여, `fitz` shim DLL 이 정책에 의해 차단된 환경에서도 페이지 수/메타데이터 추출을 계속 수행한다.
 
@@ -77,8 +83,8 @@ python -m mineru.cli.client -p <input> -o <output> [-b backend] [-l language] [-
 
 1. **헤더 정리**: 선행 점(`.`) 제거, 번호 목록 헤더 수정
 2. **수식 정리**: `$` 주변 공백 제거, `$$` 블록 수식 줄바꿈 보정
-3. **표 변환**: HTML `<table>` → Markdown 표 (`|...|`) 변환
-4. **아티팩트 제거**: 페이지 번호, 빈 링크, DOI/URL 라인 제거 (이미지 참조 보존)
+3. **표 변환**: HTML `<table>` → Markdown 표 (`|...|`) 변환. 병합 셀(rowspan/colspan)이 있는 표는 칸 밀림을 막기 위해 HTML 그대로 유지 (Obsidian 에서 정상 렌더링)
+4. **아티팩트 제거**: 숫자만 있는 줄(페이지 번호, 수식/코드/표 내부 제외), 빈 링크, 3회 이상 반복되는 DOI/URL 단독 줄(머리말·꼬리말)만 제거. DOI/URL 이 들어간 본문·참고문헌은 보존
 5. **이미지 경로**: 공백 포함 경로를 CommonMark angle bracket (`<path>`)으로 감싸기
 
 ## Verification System

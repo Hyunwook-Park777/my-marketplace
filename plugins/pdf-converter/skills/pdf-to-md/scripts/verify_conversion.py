@@ -139,8 +139,10 @@ def extract_md_metadata(md_path: Path) -> dict:
                 image_files_found += 1
 
     # MD 표 카운트 (구분선 |---|---| 패턴)
-    table_separators = re.findall(r'^\|[\s\-:|]+\|$', content, re.MULTILINE)
-    table_count = len(table_separators)
+    table_separators = re.findall(r'^\|[ \t\-:|]+\|$', content, re.MULTILINE)
+    # 병합 셀 표는 후처리에서 HTML 로 유지되므로 함께 센다
+    html_tables = re.findall(r'<table\b', content, re.IGNORECASE)
+    table_count = len(table_separators) + len(html_tables)
 
     # 수식 카운트
     block_equations = re.findall(r'\$\$.*?\$\$', content, re.DOTALL)
@@ -225,7 +227,8 @@ def compare_pdf_md(pdf_meta: dict, md_meta: dict) -> dict:
         recommendations.append("Check if MinerU missed pages or sections")
 
     # 2. 이미지 완전성 (25%)
-    image_score = _score_ratio(md_meta["image_refs"], pdf_meta["image_count"])
+    # 참조만 있고 파일이 없는 이미지는 Obsidian 에서 깨져 보이므로 실제 존재하는 파일 수로 채점
+    image_score = _score_ratio(md_meta["image_files_found"], pdf_meta["image_count"])
     image_detail = {
         "score": round(image_score, 1),
         "pdf_images": pdf_meta["image_count"],
@@ -398,6 +401,12 @@ def verify_batch(pdf_dir: Path, md_dir: Path) -> dict:
 
 
 def main():
+    # Windows 파이프 기본 인코딩(cp949)에서는 일부 문자 출력 시 UnicodeEncodeError 로 종료된다
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError):
+            pass
     parser = argparse.ArgumentParser(
         description="Verify PDF to Markdown conversion quality"
     )

@@ -42,6 +42,26 @@ MINERU_JUNK_SUFFIXES = [
 MAX_PATH_WINDOWS = 260
 # MinerU 부가 파일 중 가장 긴 접미사
 MINERU_LONGEST_SUFFIX = "_content_list.json"
+# MinerU 파싱 하위 폴더 중 가장 긴 이름 (auto / txt / ocr / vlm / hybrid_auto ...)
+MINERU_LONGEST_SUBDIR = "hybrid_auto"
+
+# MinerU `-l` 은 ISO 코드(ko/ja/zh)가 아닌 자체 이름(korean/japan/ch)만 허용한다.
+# 사용자가 흔히 쓰는 ISO 코드를 MinerU 이름으로 변환한다.
+LANG_ALIASES = {
+    "ko": "korean", "kr": "korean", "kor": "korean",
+    "ja": "japan", "jp": "japan", "jpn": "japan", "japanese": "japan",
+    "zh": "ch", "zh-cn": "ch", "zh_cn": "ch", "cn": "ch", "chinese": "ch",
+    "zh-tw": "chinese_cht", "zh_tw": "chinese_cht", "tw": "chinese_cht",
+    "eng": "en", "english": "en",
+    "ru": "east_slavic", "uk": "east_slavic",
+    "ar": "arabic", "hi": "devanagari",
+}
+
+
+def normalize_language(language: str) -> str:
+    """ISO 언어 코드를 MinerU `-l` 값으로 변환 (모르는 값은 그대로 전달)"""
+    key = language.strip().lower()
+    return LANG_ALIASES.get(key, key)
 
 
 def get_mineru_cmd() -> list:
@@ -67,6 +87,17 @@ def detect_cuda_device() -> Optional[str]:
     except Exception:
         pass
     return None
+
+
+def mineru_error_hint(stderr: str) -> str:
+    """MinerU stderr 에서 마지막 ERROR/Exception 줄을 뽑는다.
+
+    MinerU 는 모델 로드 실패(예: lmdeploy 버전 불일치) 시에도 종료 코드 0 을 반환하므로
+    '결과 파일 없음' 만으로는 원인을 알 수 없다.
+    """
+    lines = [re.sub(r'\x1b\[[0-9;]*m', '', l).strip() for l in (stderr or "").splitlines()]
+    hits = [l for l in lines if re.search(r'\b(ERROR|Error|Exception)\b', l)]
+    return hits[-1][-300:] if hits else ""
 
 
 def check_mineru_installation() -> bool:
@@ -108,10 +139,28 @@ def estimate_max_path_length(output_dir: Path, stem: str) -> int:
     """
     MinerU가 생성할 최대 경로 길이를 추정.
 
-    패턴: {output_dir}/{stem}/auto/{stem}{longest_suffix}
+    패턴: {output_dir}/{stem}/{parse_subdir}/{stem}{longest_suffix}
     """
-    longest_path = output_dir / stem / "auto" / f"{stem}{MINERU_LONGEST_SUFFIX}"
-    return len(str(longest_path))
+    # 이미지 파일명은 sha256(64자) + 확장자라 stem 이 짧으면 이미지 경로가 더 길다
+    tail = max(len(stem) + len(MINERU_LONGEST_SUFFIX), len("images/") + 64 + len(".jpeg"))
+    return len(str(output_dir.resolve() / stem / MINERU_LONGEST_SUBDIR)) + 1 + tail
+
+
+def find_mineru_parse_dir(output_dir: Path, stem: str) -> Optional[Path]:
+    """MinerU 가 {stem}.md 를 쓴 하위 폴더를 찾는다.
+
+    하위 폴더 이름은 백엔드/메서드에 따라 다르다:
+    pipeline → auto|txt|ocr, vlm-* → vlm, hybrid-* → hybrid_auto|hybrid_txt|hybrid_ocr
+    """
+    stem_dir = output_dir / stem
+    if not stem_dir.is_dir():
+        return None
+    candidates = [d for d in stem_dir.iterdir()
+                  if d.is_dir() and (d / f"{stem}.md").exists()]
+    if not candidates:
+        return None
+    # 같은 출력 폴더에 여러 번 변환한 경우 가장 최근 결과를 사용
+    return max(candidates, key=lambda d: (d / f"{stem}.md").stat().st_mtime)
 
 
 def _get_short_temp_dir() -> Path:
@@ -128,23 +177,24 @@ def flatten_mineru_output(output_dir: Path, stem: str) -> Optional[Path]:
     """
     MinerU 중첩 출력 구조를 평탄화
 
-    MinerU 출력: {output_dir}/{stem}/auto/{stem}.md
+    MinerU 출력: {output_dir}/{stem}/{auto|ocr|txt|vlm|hybrid_auto|...}/{stem}.md
     평탄화 결과: {output_dir}/{stem}.md + {output_dir}/{stem}/images/
 
     Returns:
         평탄화된 .md 파일 경로 또는 None
     """
-    nested_md = output_dir / stem / "auto" / f"{stem}.md"
+    parse_dir = find_mineru_parse_dir(output_dir, stem)
     flat_md = output_dir / f"{stem}.md"
-    flat_md_result = None
+    if parse_dir is None:
+        return None
 
-    # MD 파일 이동 (존재할 때만)
-    if nested_md.exists():
-        shutil.move(str(nested_md), str(flat_md))
-        flat_md_result = flat_md if flat_md.exists() else None
+    # MD 파일 이동
+    nested_md = parse_dir / f"{stem}.md"
+    shutil.move(str(nested_md), str(flat_md))
+    flat_md_result = flat_md if flat_md.exists() else None
 
-    # 이미지 폴더 이동: {stem}/auto/images/ → {stem}/images/ (문서별 폴더)
-    nested_images = output_dir / stem / "auto" / "images"
+    # 이미지 폴더 이동: {stem}/{parse_dir}/images/ → {stem}/images/ (문서별 폴더)
+    nested_images = parse_dir / "images"
     if nested_images.exists() and any(nested_images.iterdir()):
         paper_images = output_dir / stem / "images"
         paper_images.mkdir(parents=True, exist_ok=True)
@@ -159,15 +209,8 @@ def flatten_mineru_output(output_dir: Path, stem: str) -> Optional[Path]:
     if flat_md.exists():
         _update_image_references(flat_md, stem)
 
-    # 불필요한 부가 파일 정리
-    auto_dir = output_dir / stem / "auto"
-    if auto_dir.exists():
-        for suffix in MINERU_JUNK_SUFFIXES:
-            junk = auto_dir / f"{stem}{suffix}"
-            if junk.exists():
-                junk.unlink()
-        # auto/ 디렉토리만 정리 ({stem}/ 폴더는 이미지를 포함하므로 유지)
-        shutil.rmtree(str(auto_dir), ignore_errors=True)
+    # 불필요한 부가 파일 정리: 파싱 하위 폴더만 삭제 ({stem}/ 폴더는 이미지를 포함하므로 유지)
+    shutil.rmtree(str(parse_dir), ignore_errors=True)
 
     return flat_md_result
 
@@ -315,7 +358,8 @@ def convert_single_pdf(
                 )
         else:
             result["status"] = "failed"
-            result["error"] = "Output file not created"
+            hint = mineru_error_hint(proc.stderr)
+            result["error"] = "Output file not created" + (f" (MinerU: {hint})" if hint else "")
 
     except subprocess.TimeoutExpired:
         result["status"] = "failed"
@@ -389,7 +433,8 @@ def _convert_with_short_path(
 
         if not flat_md or not flat_md.exists():
             result["status"] = "failed"
-            result["error"] = "Output file not created in temp directory"
+            hint = mineru_error_hint(proc.stderr)
+            result["error"] = "Output file not created in temp directory" + (f" (MinerU: {hint})" if hint else "")
             return result
 
         # 결과를 최종 위치로 이동 (원래 stem 이름 복원)
@@ -400,27 +445,38 @@ def _convert_with_short_path(
         final_md = final_output_dir / f"{original_stem}.md"
         shutil.move(str(flat_md), str(final_md))
 
-        # 이미지 이동 (문서별 폴더)
+        # 앞선 배치 시도가 긴 경로에 남긴 미완성 파싱 폴더 정리 ({stem}/auto 등, images 는 유지)
+        final_stem_dir = final_output_dir / original_stem
+        if final_stem_dir.is_dir():
+            for sub in final_stem_dir.iterdir():
+                if sub.is_dir() and sub.name != "images":
+                    shutil.rmtree(str(sub), ignore_errors=True)
+
+        # 이미지 이동 (문서별 폴더). 최종 경로도 MAX_PATH 를 넘으면 sha256 파일명을
+        # img_001.jpg 처럼 짧게 바꾼다. 그대로 옮기면 WinError 3 으로 이미지가 사라진다.
+        _content = final_md.read_text(encoding="utf-8")
         tmp_images = tmp_out / short_stem / "images"
+        final_images = final_stem_dir / "images"
         if tmp_images.exists() and any(tmp_images.iterdir()):
-            final_images = final_output_dir / original_stem / "images"
             final_images.mkdir(parents=True, exist_ok=True)
-            for img in tmp_images.iterdir():
-                if img.is_file():
-                    dest = final_images / img.name
-                    if dest.exists():
-                        dest.unlink()
-                    shutil.move(str(img), str(dest))
+            imgs = sorted(p for p in tmp_images.iterdir() if p.is_file())
+            longest = max(len(str(final_images.resolve() / p.name)) for p in imgs)
+            rename = longest >= MAX_PATH_WINDOWS
+            if rename:
+                result["warnings"].append("Image files renamed to img_NNN to fit Windows MAX_PATH")
+            for n, img in enumerate(imgs, 1):
+                new_name = f"img_{n:03d}{img.suffix}" if rename else img.name
+                dest = final_images / new_name
+                if dest.exists():
+                    dest.unlink()
+                shutil.move(str(img), str(dest))
+                if rename:
+                    _content = _content.replace(f"{short_stem}/images/{img.name}",
+                                                f"{short_stem}/images/{new_name}")
 
         # 이미지 참조: short_stem → original_stem 교체
-        if final_md.exists():
-            _content = final_md.read_text(encoding="utf-8")
-            _updated = _content.replace(
-                f"]({short_stem}/images/",
-                f"]({original_stem}/images/"
-            )
-            if _updated != _content:
-                final_md.write_text(_updated, encoding="utf-8")
+        _content = _content.replace(f"]({short_stem}/images/", f"]({original_stem}/images/")
+        final_md.write_text(_content, encoding="utf-8")
 
         # 통계 수집
         content = final_md.read_text(encoding="utf-8")
@@ -504,6 +560,9 @@ def batch_convert(
             timeout=batch_timeout
         )
         batch_success = (proc.returncode == 0)
+        hint = mineru_error_hint(proc.stderr)
+        if hint:
+            print(f"MinerU reported: {hint}")
         if not batch_success:
             print(f"Batch conversion failed (exit code {proc.returncode})")
             print(f"stderr: {proc.stderr[:500] if proc.stderr else 'none'}")
@@ -639,6 +698,12 @@ def _build_report(
 
 
 def main():
+    # Windows 파이프 기본 인코딩(cp949)에서는 일부 문자 출력 시 UnicodeEncodeError 로 종료된다
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError):
+            pass
     parser = argparse.ArgumentParser(
         description="Convert PDF documents to Markdown using MinerU"
     )
@@ -664,7 +729,7 @@ def main():
         "--language", "-l",
         type=str,
         default="en",
-        help="OCR language (default: en)"
+        help="OCR language: en, korean, japan, ch, ... (ISO codes ko/ja/zh are mapped; default: en)"
     )
     parser.add_argument(
         "--backend", "-b",
@@ -672,7 +737,7 @@ def main():
         default="pipeline",
         choices=["pipeline", "vlm-auto-engine", "hybrid-auto-engine",
                  "vlm-http-client", "hybrid-http-client"],
-        help="MinerU backend (default: pipeline)"
+        help="MinerU backend (default: pipeline, GPU via -d cuda). hybrid/vlm on Windows need lmdeploy matching this MinerU version"
     )
     parser.add_argument(
         "--method", "-m",
@@ -691,13 +756,33 @@ def main():
         "--device", "-d",
         type=str,
         default=None,
-        help="Inference device: 'cuda', 'cpu', 'cuda:0', etc. If omitted, auto-detects CUDA and falls back to CPU."
+        help="Inference device: 'cuda', 'cpu', 'cuda:0', etc. If omitted, uses CUDA (fails if unavailable unless --allow-cpu)."
+    )
+    parser.add_argument(
+        "--allow-cpu",
+        action="store_true",
+        help="Fall back to CPU when CUDA is unavailable (default: stop with an error, GPU only)"
     )
 
     args = parser.parse_args()
 
     if not args.input_dir and not args.single:
         parser.error("Either --input-dir or --single is required")
+
+    # GPU 전용 정책: CPU 변환은 수백 페이지 문서에서 수십 배 느리므로 조용히 폴백하지 않는다
+    if args.device is None:
+        args.device = detect_cuda_device()
+        if args.device is None:
+            if not args.allow_cpu:
+                print("Error: CUDA GPU not available (torch.cuda.is_available() is False).", file=sys.stderr)
+                print("Install CUDA PyTorch, or pass --allow-cpu / --device cpu to run on CPU.", file=sys.stderr)
+                sys.exit(3)
+            args.device = "cpu"
+
+    language = normalize_language(args.language)
+    if language != args.language:
+        print(f"Language '{args.language}' -> MinerU '{language}'", file=sys.stderr)
+        args.language = language
 
     if not check_mineru_installation():
         print("Error: MinerU is not installed or cannot be launched.")

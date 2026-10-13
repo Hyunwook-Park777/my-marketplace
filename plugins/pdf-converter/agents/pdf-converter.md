@@ -35,14 +35,14 @@ python {scripts}/mineru_converter.py --input-dir "{pdf_dir}" --output-dir "{outp
 **GPU 강제 / CPU 강제:**
 ```bash
 python {scripts}/mineru_converter.py --single "{pdf_path}" --output-dir "{output_dir}" --device cuda   # GPU 강제
-python {scripts}/mineru_converter.py --single "{pdf_path}" --output-dir "{output_dir}" --device cpu    # CPU 강제
+python {scripts}/mineru_converter.py --single "{pdf_path}" --output-dir "{output_dir}" --device cpu    # CPU 강제 (명시적 예외)
 ```
 
 **출력**: `{output_dir}/{stem}.md` + `{output_dir}/{stem}/images/`
 
 **실행 환경 노트:**
 - 스크립트는 항상 `python -m mineru.cli.client` 로 MinerU 를 호출하므로, Windows Device Guard / Application Control 이 `mineru.exe` 를 차단하는 환경에서도 안전하게 동작한다.
-- `--device` 생략 시 PyTorch `torch.cuda.is_available()` 로 GPU 를 자동 감지하고 실패 시 CPU 로 폴백한다. GPU 활용을 위해서는 **CUDA 빌드 PyTorch** 가 필요하다(기본 `torch` 휠은 CPU 전용).
+- **GPU 전용**: `--device` 생략 시 CUDA 를 사용하고, CUDA 미감지 시 종료 코드 3 으로 중단한다 (CPU 는 `--allow-cpu` 로만 허용). 기본 백엔드는 `pipeline` (GPU 실행). hybrid/vlm 은 lmdeploy 버전이 MinerU 와 맞을 때만 사용. GPU 활용을 위해서는 **CUDA 빌드 PyTorch** 가 필요하다(기본 `torch` 휠은 CPU 전용).
 - 실패 파일은 Windows MAX_PATH 문제일 수 있음 → 자동 short-path 폴백 적용됨
 - `conversion_report.json`에서 성공/실패 확인
 
@@ -63,9 +63,9 @@ python {scripts}/md_postprocessor.py --single "{md_path}" --output "{md_path}"
 **처리 내용:**
 1. 헤더 앞 점(`.`) 제거
 2. 번호 목록 → 적절한 헤딩 레벨로 수정
-3. HTML `<table>` → Markdown 표 변환
+3. HTML `<table>` → Markdown 표 변환 (병합 셀 표는 HTML 유지)
 4. 수식 주변 공백/줄바꿈 정리
-5. 페이지 번호, 빈 링크 등 아티팩트 제거
+5. 페이지 번호, 빈 링크, 반복되는 DOI/URL 머리말 등 아티팩트 제거 (본문·참고문헌의 DOI/URL 은 보존)
 6. 공백 포함 이미지 경로를 angle bracket으로 감싸기
 
 ### Phase 2.5: 수식 번호/화살표 복원 (선택)
@@ -123,8 +123,11 @@ python {scripts}/verify_figures.py --md-dir "{output_dir}" --mode verify --check
 
 **이미지 누락 파일이 있으면 repair 모드 실행:**
 ```bash
-python {scripts}/verify_figures.py --md-dir "{output_dir}" --pdf-dir "{pdf_dir}" --mode repair --check-images
+python {scripts}/verify_figures.py --md-dir "{output_dir}" --pdf-dir "{pdf_dir}" --mode repair --check-images -l {language} --timeout {timeout}
 ```
+
+- Phase 1 에서 `-b`/`--method`/`-d` 를 지정했다면 repair 에도 같은 값을 넘긴다 (`-b`, `--method`, `-d`).
+- 재변환된 파일에만 Phase 2 후처리와 Phase 2.5 수식 번호 복원이 자동으로 다시 적용된다 (끄려면 `--no-equation-fix`).
 
 ### Phase 4: 변환 품질 검증
 

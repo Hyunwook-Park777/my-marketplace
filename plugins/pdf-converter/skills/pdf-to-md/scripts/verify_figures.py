@@ -25,10 +25,15 @@ Features:
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
 from pathlib import Path
+
+
+# 자식 Python 이 stdout 을 UTF-8 로 쓰게 해 JSON 출력이 cp949 에서 깨지지 않게 한다
+UTF8_ENV = {**os.environ, "PYTHONIOENCODING": "utf-8"}
 
 
 def count_image_refs(content: str) -> int:
@@ -131,11 +136,20 @@ def repair_missing_figures(
     md_dir: Path,
     pdf_dir: Path,
     verify_result: dict,
-    script_dir: Path
+    script_dir: Path,
+    converter_args: list = None,
+    timeout: int = 3600,
+    fix_equations: bool = True
 ) -> dict:
-    """이미지 누락 파일을 MinerU 재변환으로 복구"""
+    """이미지 누락 파일을 MinerU 재변환으로 복구
+
+    재변환한 파일에만 후처리(md_postprocessor)와 수식 번호 복원(equation_fixer)을
+    다시 적용한다. 재변환은 MD 를 새로 쓰므로 이전 단계 결과가 사라지기 때문이다.
+    """
     converter_script = script_dir / "mineru_converter.py"
     postprocessor_script = script_dir / "md_postprocessor.py"
+    equation_fixer_script = script_dir / "equation_fixer.py"
+    converter_args = converter_args or []
 
     if not converter_script.exists():
         return {"error": f"mineru_converter.py not found at {converter_script}"}
@@ -165,16 +179,17 @@ def repair_missing_figures(
 
         print(f"[{i}/{len(missing_files)}] Reconverting: {pdf_path.name}")
 
-        # MinerU 재변환 (CUDA 자동 감지 - 기본값)
+        # MinerU 재변환 (최초 변환과 같은 옵션 사용, device 생략 시 CUDA 자동 감지)
         try:
             cmd = [
                 sys.executable, str(converter_script),
                 "--single", str(pdf_path),
                 "--output-dir", str(md_dir),
-                "-b", "pipeline"
-            ]
+                "--timeout", str(timeout),
+            ] + converter_args
+            # 변환기 자체 타임아웃보다 약간 길게 두어 변환기의 실패 리포트를 받는다
             proc = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=600
+                cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", env=UTF8_ENV, timeout=timeout + 120
             )
 
             if proc.returncode != 0:
@@ -187,18 +202,20 @@ def repair_missing_figures(
                 repair_results.append(result)
                 continue
 
-            # 변환 결과 파싱
+            # 변환 결과 파싱 (stdout 에 진행 메시지가 섞일 수 있어 첫 '{' 부터 파싱)
             try:
-                conv_result = json.loads(proc.stdout)
+                conv_result = json.loads(proc.stdout[proc.stdout.index("{"):])
                 figures = conv_result.get("figures", 0)
-            except json.JSONDecodeError:
+                repaired_md = Path(conv_result["output"])
+            except (ValueError, KeyError, TypeError):
                 figures = "unknown"
+                repaired_md = md_dir / f"{pdf_path.stem}.md"
 
         except subprocess.TimeoutExpired:
             result = {
                 "file": md_name,
                 "status": "timeout",
-                "error": "MinerU conversion timed out (600s)"
+                "error": f"MinerU conversion timed out ({timeout}s)"
             }
             print(f"  -> FAILED: timeout")
             repair_results.append(result)
@@ -208,24 +225,27 @@ def repair_missing_figures(
             "file": md_name,
             "status": "repaired",
             "pdf_used": pdf_path.name,
-            "figures": figures
+            "figures": figures,
+            "warnings": []
         }
-        print(f"  -> OK: {figures} figures")
-        repair_results.append(result)
 
-    # 일괄 postprocessor 적용
-    if any(r["status"] == "repaired" for r in repair_results):
-        print(f"\nApplying postprocessor to all files...")
-        try:
-            cmd = [
-                sys.executable, str(postprocessor_script),
-                "--input-dir", str(md_dir),
-                "--output-dir", str(md_dir)
-            ]
-            subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-            print("Postprocessor applied successfully")
-        except Exception as e:
-            print(f"Postprocessor warning: {e}")
+        # 재변환한 파일에만 후처리 + 수식 번호 복원 재적용
+        steps = [("postprocessor", [sys.executable, str(postprocessor_script),
+                                    "--single", str(repaired_md), "--output", str(repaired_md)])]
+        if fix_equations and equation_fixer_script.exists():
+            steps.append(("equation_fixer", [sys.executable, str(equation_fixer_script),
+                                             "--pdf", str(pdf_path), "--md", str(repaired_md)]))
+        for step_name, step_cmd in steps:
+            try:
+                step = subprocess.run(step_cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", env=UTF8_ENV, timeout=600)
+                if step.returncode != 0:
+                    result["warnings"].append(f"{step_name} failed: {step.stderr[:300]}")
+            except Exception as e:
+                result["warnings"].append(f"{step_name} failed: {e}")
+
+        print(f"  -> OK: {figures} figures"
+              + (f" ({len(result['warnings'])} warning(s))" if result["warnings"] else ""))
+        repair_results.append(result)
 
     # 복구 후 재검증
     print("\n=== Post-repair verification ===")
@@ -246,6 +266,12 @@ def repair_missing_figures(
 
 
 def main():
+    # Windows 파이프 기본 인코딩(cp949)에서는 일부 문자 출력 시 UnicodeEncodeError 로 종료된다
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError):
+            pass
     parser = argparse.ArgumentParser(
         description="Verify and repair figure references in converted MD files"
     )
@@ -278,6 +304,19 @@ def main():
         default=None,
         help="Output JSON report path (default: print to stdout)"
     )
+    # repair 모드 재변환 옵션: 최초 변환과 같은 값을 넘겨야 결과가 일관된다
+    parser.add_argument("--timeout", type=int, default=3600,
+                        help="Repair: per-PDF conversion timeout in seconds (default: 3600)")
+    parser.add_argument("--language", "-l", default=None,
+                        help="Repair: OCR language passed to mineru_converter.py")
+    parser.add_argument("--backend", "-b", default=None,
+                        help="Repair: MinerU backend passed to mineru_converter.py")
+    parser.add_argument("--method", default=None,
+                        help="Repair: parse method (auto/txt/ocr) passed to mineru_converter.py")
+    parser.add_argument("--device", "-d", default=None,
+                        help="Repair: inference device passed to mineru_converter.py")
+    parser.add_argument("--no-equation-fix", action="store_true",
+                        help="Repair: skip equation_fixer.py on re-converted files")
 
     args = parser.parse_args()
 
@@ -311,8 +350,16 @@ def main():
             return 1
 
         script_dir = Path(__file__).parent
+        converter_args = []
+        for flag, value in (("-l", args.language), ("-b", args.backend),
+                            ("-m", args.method), ("-d", args.device)):
+            if value:
+                converter_args += [flag, value]
         repair_result = repair_missing_figures(
-            args.md_dir, args.pdf_dir, verify_result, script_dir
+            args.md_dir, args.pdf_dir, verify_result, script_dir,
+            converter_args=converter_args,
+            timeout=args.timeout,
+            fix_equations=not args.no_equation_fix
         )
         report["repair"] = repair_result
 

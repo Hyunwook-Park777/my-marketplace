@@ -18,17 +18,18 @@ PDF 문서를 Markdown으로 변환하는 4-Phase 파이프라인 오케스트�
 |-----------|----------|---------|-------------|
 | `pdf_input` | Yes | - | PDF 폴더 또는 단일 파일 경로 |
 | `output_dir` | No | `{CWD}/md_output/` | 출력 디렉토리 |
-| `language` | No | `en` | OCR 언어 (en, ko, ja, zh 등) |
+| `language` | No | `en` | OCR 언어 (en, korean, japan, ch 등. ko/ja/zh 는 자동 변환) |
 | `verify` | No | `true` | 품질 검증 활성화 여부 |
 
 ## Execution Flow
 
 ### Step 0: 환경 확인
 
-1. MinerU 설치 확인: `mineru --version`
-2. PyMuPDF 설치 확인 (검증용): `python -c "import fitz"`
-3. 입력 경로 존재 확인
-4. 출력 디렉토리 생성
+1. MinerU 설치 확인: `python -m mineru.cli.client --version` (Device Guard 가 `mineru.exe` 를 막는 환경에서도 동작)
+2. CUDA GPU 확인: `python -c "import torch; print(torch.cuda.is_available())"` — False 면 CUDA PyTorch 설치를 안내하고 중단 (사용자가 CPU 를 명시한 경우만 `--allow-cpu`)
+3. PyMuPDF 설치 확인 (검증용): `python -c "import pymupdf"`
+4. 입력 경로 존재 확인
+5. 출력 디렉토리 생성
 
 ### Step 1: PDF → Markdown 변환 (Phase 1)
 
@@ -54,7 +55,7 @@ Output: output_dir/*.md
 
 변환된 MD 파일을 정리합니다:
 - 헤더 정규화
-- HTML 표 → Markdown 표
+- HTML 표 → Markdown 표 (병합 셀 표는 HTML 유지)
 - 수식 정리
 - 아티팩트 제거
 - 이미지 경로 공백 처리

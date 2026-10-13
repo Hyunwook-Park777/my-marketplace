@@ -607,6 +607,12 @@ def process_batch(
 
 
 def main():
+    # Windows 파이프 기본 인코딩(cp949)에서는 일부 문자 출력 시 UnicodeEncodeError 로 종료된다
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError):
+            pass
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--pdf", type=Path, help="Single PDF file")
     parser.add_argument("--md", type=Path, help="Single MD file to fix in place")

@@ -22,6 +22,7 @@ Features:
 
 import argparse
 import re
+import sys
 from pathlib import Path
 from typing import Tuple
 
@@ -78,8 +79,10 @@ def clean_equations(content: str) -> str:
     content = re.sub(r'\$\$\n(\S)', r'$$\n\n\1', content)
     # display 수식이 본문과 같은 줄에 혼재되어 있으면 줄바꿈으로 분리
     #   (MinerU 가 때때로 `... as $$math$$ ...` 형태로 뽑는 경우 방어)
+    #   한 줄 안에서만 매칭한다: `\s` 로 줄을 넘으면 닫는 `$$` 와 다음 블록의 여는 `$$` 를
+    #   짝지어 그 사이 본문을 수식으로, 수식을 본문으로 뒤바꾼다
     content = re.sub(
-        r'([^\n])\s*\$\$\s*([^\n$][^$]*?)\s*\$\$\s*([^\n])',
+        r'([^\n])[^\S\n]*\$\$[^\S\n]*([^\n$][^\n$]*?)[^\S\n]*\$\$[^\S\n]*([^\n])',
         r'\1\n\n$$\n\2\n$$\n\n\3',
         content
     )
@@ -91,6 +94,11 @@ def clean_html_tables(content: str) -> str:
 
     def _html_table_to_markdown(match):
         table_html = match.group(0)
+
+        # 병합 셀(rowspan/colspan > 1)은 pipe 표로 표현할 수 없어 칸이 밀린다.
+        # Obsidian 은 HTML 표를 그대로 렌더링하므로 원본 HTML 을 유지한다.
+        if re.search(r'\b(?:rowspan|colspan)\s*=\s*["\']?\s*(?:[2-9]|\d{2,})', table_html, re.IGNORECASE):
+            return table_html.strip()
 
         # 행 추출
         rows = re.findall(r'<tr[^>]*>(.*?)</tr>', table_html, re.DOTALL)
@@ -149,8 +157,14 @@ def clean_tables(content: str) -> str:
     # HTML 표를 먼저 Markdown으로 변환
     content = clean_html_tables(content)
 
-    # Markdown 표 정리
-    content = re.sub(r'\|[\s\-:]+\|', lambda m: re.sub(r'\s+', '', m.group()), content)
+    # Markdown 표 구분선 공백 정리 (`| --- | :-: |` → `|---|:-:|`).
+    # 한 줄 안에서만 처리한다: `\s` 는 줄바꿈을 포함해 헤더 줄과 구분선을 한 줄로 붙여버린다.
+    content = re.sub(
+        r'^[ \t]*\|(?:[ \t]*:?-+:?[ \t]*\|)+[ \t]*$',
+        lambda m: re.sub(r'[ \t]+', '', m.group()),
+        content,
+        flags=re.MULTILINE
+    )
 
     lines = content.split('\n')
     result = []
@@ -172,15 +186,56 @@ def clean_tables(content: str) -> str:
     return '\n'.join(result)
 
 
+BARE_DOI_OR_URL = re.compile(
+    r'^\s*(?:(?:doi|DOI)\s*:?\s*10\.\S+|https?://\S+|www\.\S+|(?:https?://)?(?:dx\.)?doi\.org/\S+)\s*$'
+)
+# 같은 DOI/URL 단독 줄이 이 횟수 이상 반복되면 페이지 머리말/꼬리말로 본다
+RUNNING_HEADER_MIN_REPEATS = 3
+
+
 def remove_artifacts(content: str) -> str:
-    """변환 아티팩트 제거"""
+    """변환 아티팩트 제거
 
-    content = re.sub(r'^\s*\d+\s*$', '', content, flags=re.MULTILINE)
+    본문 손실을 막기 위해 '줄 전체가 아티팩트'인 경우만 지운다:
+    - 숫자만 있는 줄 (페이지 번호). 단, display 수식/코드 블록/HTML 표 내부는 보존
+    - DOI/URL 만 있는 줄이 문서에서 여러 번 반복될 때 (머리말/꼬리말)
+    DOI/URL 이 포함된 문장·참고문헌 항목은 지우지 않는다.
+    """
     content = re.sub(r'(?<!!)\[\]\([^)]*\)', '', content)
-    content = re.sub(r'\n{4,}', '\n\n\n', content)
-    content = re.sub(r'^.*?(doi|DOI):\s*\S+.*$', '', content, flags=re.MULTILINE)
-    content = re.sub(r'^.*?www\.\S+\.(com|org|edu).*$', '', content, flags=re.MULTILINE)
 
+    lines = content.split('\n')
+    bare_counts = {}
+    for line in lines:
+        if BARE_DOI_OR_URL.match(line):
+            key = line.strip()
+            bare_counts[key] = bare_counts.get(key, 0) + 1
+
+    result = []
+    in_math = in_code = in_html_table = False
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith(('```', '~~~')):
+            in_code = not in_code
+        elif not in_code and len(re.findall(r'(?<!\\)\$\$', stripped)) % 2:
+            # `$$`, `$$ a=1`, `b $$` 는 블록 경계, `$$x$$` 는 한 줄 수식이라 상태 유지
+            in_math = not in_math
+            result.append(line)
+            continue
+        elif not in_code and not in_math:
+            if re.search(r'<table\b', stripped, re.IGNORECASE):
+                in_html_table = True
+            if re.search(r'</table>', stripped, re.IGNORECASE):
+                in_html_table = False
+
+        if not (in_code or in_math or in_html_table):
+            if re.fullmatch(r'\d+', stripped):
+                continue
+            if bare_counts.get(stripped, 0) >= RUNNING_HEADER_MIN_REPEATS:
+                continue
+        result.append(line)
+
+    content = '\n'.join(result)
+    content = re.sub(r'\n{4,}', '\n\n\n', content)
     return content
 
 
@@ -323,6 +378,12 @@ def batch_process(
 
 
 def main():
+    # Windows 파이프 기본 인코딩(cp949)에서는 일부 문자 출력 시 UnicodeEncodeError 로 종료된다
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError):
+            pass
     parser = argparse.ArgumentParser(
         description="Post-process Markdown files converted from PDF"
     )
