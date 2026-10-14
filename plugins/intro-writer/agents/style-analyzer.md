@@ -47,11 +47,21 @@ model: opus
 | 항목 | 설명 |
 |------|------|
 | `style_profile.json` | Introduction 스타일 프로필 (구조화된 데이터) |
-| `style_confidence.md` | 신뢰도 리포트 |
+| `style_confidence.md` 내용 | 신뢰도 리포트. 파일로 쓰지 않고 **최종 메시지로 반환** — 오케스트레이터가 저장 |
 
 ---
 
 ## 3. Workflow
+
+### Phase 0: 기존 프로필 재사용 여부
+
+오케스트레이터가 `existing_profile` 경로를 넘기면 분석하지 않고 그 파일을 검증만 한다
+(필수 키 `introduction_style`, `voice_tense`, `citation_style` 존재, `overall_confidence` 값).
+사용자의 기존 논문은 거의 바뀌지 않으므로 매번 재분석할 이유가 없다.
+새 논문이 추가됐다면(`metadata.analyzed_files` 와 폴더 목록이 다르면) 재분석한다.
+`analyzed_files` 키가 없는 예전 프로필은 그대로 재사용하고 그 사실만 보고한다.
+필수 키가 없으면 재사용 실패로 보고한다 — 오케스트레이터가 사용자 논문으로 재분석할지 묻는다.
+재사용 시 `style_confidence.md` 는 만들지 않는다. 신뢰도 값은 `metadata.overall_confidence` 에 있다.
 
 ### Phase 1: Introduction 섹션 추출
 
@@ -153,6 +163,7 @@ model: opus
 {
   "metadata": {
     "analyzed_papers": 5,
+    "analyzed_files": ["paper_a.md", "paper_b.md"],
     "analysis_depth": "deep",
     "overall_confidence": 0.85,
     "timestamp": "2026-03-09T13:00:00"
@@ -163,12 +174,17 @@ model: opus
     "opening_patterns": {...},
     "gap_patterns": {...},
     "objective_patterns": {...},
-    "closing_patterns": {...}
+    "closing_patterns": {...},
+    "literature_review_style": {
+      "dominant": "sequential_per_paper | thematic_synthesis",
+      "pattern": "[Author] et al. [N] investigated ... and found that ...",
+      "frequency": 0.8
+    }
   },
   "voice_tense": {...},
   "high_freq_expressions": {...},
   "citation_style": {
-    "format": "numbered",
+    "format": "numbered | author_year",
     "pattern": "[N]",
     "density": 2.5
   },
@@ -186,12 +202,7 @@ model: opus
 
 분석 시 `references/linguistic-patterns.json`의 패턴을 참조 기준으로 사용합니다:
 
-```
-# 참조 파일 찾기
-+-- 상대경로: references/linguistic-patterns.json (스킬 루트 기준)
-+-- 실패 시 Glob 폴백: **/intro-writer/skills/intro-toolkit/references/linguistic-patterns.json
-+-- Glob도 실패 시: Glob: **/linguistic-patterns.json
-```
+경로는 `intro-toolkit` 스킬의 "스크립트·참조 경로" 절을 따른다.
 
 이 파일의 패턴을 기준으로 사용자 논문에서 일치하는 패턴을 식별하고,
 사용자 고유의 패턴이 있다면 추가로 추출합니다.
@@ -232,7 +243,7 @@ model: opus
 ## 7. 메타데이터
 
 ```yaml
-version: "1.0.0"
+version: "2.5.0"
 analysis_depth: "deep"
 focus_section: "Introduction"
 minimum_papers: 3
@@ -241,3 +252,17 @@ outputs:
   - style_profile.json
   - style_confidence.md
 ```
+
+---
+
+## 훅·권한 차단 시 규칙
+
+하네스 훅이나 권한 설정이 Write/Edit/Bash 를 막으면 **같은 결과를 다른 경로로 만들지 않는다.**
+Bash 의 `cat >`·`echo >`·`python -c "open(...).write"`, 파일명·확장자·폴더를 바꿔 다시 쓰기 모두 우회다.
+훅은 사용자가 정한 작업 규칙이고, 우회하면 그 규칙을 둔 이유(예: 서브에이전트는 보고서를 파일로 남기지 않고
+부모에게 돌려준다)가 무너진다.
+
+막혔을 때:
+1. 그 파일 쓰기를 멈춘다 (나머지 작업은 계속)
+2. 최종 메시지에 `BLOCKED_WRITE: <의도한 경로>` 줄, 막힌 이유(훅 메시지 원문), 파일에 들어갈 **내용 전체**를 담아 돌려준다
+3. 오케스트레이터가 직접 쓸지, 사용자에게 물을지 정한다

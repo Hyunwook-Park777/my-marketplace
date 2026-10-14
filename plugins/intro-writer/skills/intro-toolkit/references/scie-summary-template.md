@@ -11,8 +11,7 @@
 | **Journal**                |         |
 | **Volume / Issue / Pages** |         |
 | **Year**                   |         |
-| **DOI**                    |         |
-| **IF (Impact Factor)**     |         |
+| **DOI**                    |         |  <!-- 원문 첫 페이지에 있는 값만. 없으면 비움 -->
 | **Keywords**               |         |
 
 ---
@@ -50,7 +49,7 @@
 
 ## 6. Relevance to My Research
 
-> Digital Twin / Carbon-Free Engine 관점에서의 활용 가능성
+> `research_context` 관점에서의 활용 가능성 — **Relevance:** High / Medium / Low (근거 1줄)
 
 - **Applicable Concepts:**
 - **Potential Application:**

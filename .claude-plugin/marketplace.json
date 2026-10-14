@@ -33,14 +33,14 @@
     {
       "name": "intro-writer",
       "source": "./plugins/intro-writer",
-      "description": "사용자의 논문 작성 스타일이 반영된 Introduction을 자동 작성하는 플러그인. MinerU 기반 PDF 변환, 스타일 분석, Introduction 작성, SCIE 요약 생성을 수행합니다.",
-      "version": "2.4.0",
+      "description": "사용자의 논문 작성 스타일이 반영된 Introduction 을 작성하는 플러그인. pdf-converter(MinerU) 로 참고 PDF 변환, 스타일 분석(프로필 재사용), SCIE 요약·서지 인덱스, CARS 구조 Introduction 작성, 독립 인용 검증(원문 대조), Crossref DOI 검증, References 자동 생성. pdf-converter 플러그인 필요.",
+      "version": "2.5.0",
       "strict": true,
       "agents": [
-        "./agents/pdf-converter.md",
         "./agents/style-analyzer.md",
+        "./agents/paper-summarizer.md",
         "./agents/intro-writer.md",
-        "./agents/paper-summarizer.md"
+        "./agents/citation-verifier.md"
       ],
       "skills": [
         "./skills"
